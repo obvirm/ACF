@@ -67,6 +67,7 @@ export function NewJob() {
   const [whisperQuality, setWhisperQuality] = useState<"tiny" | "base" | "small" | "medium">("medium");
   const [ttsModel, setTtsModel] = useState<string>("higgs-tts-q4");
   const [bgmPath, setBgmPath] = useState<string | null>(null);
+  const [bgmDir, setBgmDir] = useState<string>("");
   const [bgmName, setBgmName] = useState<string | null>(null);
   const [bgmUploading, setBgmUploading] = useState(false);
   const [overlayTemplates, setOverlayTemplates] = useState<OverlayTemplate[]>([]);
@@ -168,6 +169,29 @@ export function NewJob() {
     }
   };
 
+  // Picker folder (explorer) -> upload semua audio ke pustaka server -> random per run.
+  const handleBgmFolder = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setError(null);
+    setBgmUploading(true);
+    try {
+      let n = 0;
+      for (const f of Array.from(files)) {
+        if (!/audio\/|(\.mp3|\.wav|\.flac|\.ogg|\.m4a|\.aac)$/i.test(f.type + " " + f.name)) continue;
+        await uploadVideo(f, "bgm");
+        n++;
+      }
+      if (!n) throw new Error("tidak ada file audio di folder itu");
+      setBgmPath(null);
+      setBgmName(null);
+      setBgmDir("/app/data/bgm");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBgmUploading(false);
+    }
+  };
+
   const handleVoiceRefFile = async (file: File) => {
     setError(null);
     setVoiceRefUploading(true);
@@ -218,6 +242,7 @@ export function NewJob() {
         voiceRef: voiceRef || undefined,
         language: language || undefined,
         bgm: bgmPath || undefined,
+        bgmDir: !bgmPath && bgmDir.trim() ? bgmDir.trim() : undefined,
         whisperQuality: whisperQuality || undefined,
         ttsModel: ttsModel.trim() || undefined,
       });
@@ -667,6 +692,27 @@ export function NewJob() {
         {bgmPath && (
           <p className="text-xs text-[#B6FF3B]">BGM aktif · {bgmName}</p>
         )}
+        <label className="mt-2 block space-y-1.5">
+          <span className="text-xs font-bold tracking-wide text-[#a1a1aa]">Atau folder pustaka (random 1 lagu per run)</span>
+          <label className="block cursor-pointer rounded-xl border border-dashed border-[#27272A] px-3 py-2.5 text-center text-xs text-[#a1a1aa] hover:border-[#B6FF3B]/40">
+            <input
+              type="file"
+              className="hidden"
+              disabled={bgmUploading}
+              // @ts-expect-error webkitdirectory non-standar tapi didukung Chromium
+              webkitdirectory=""
+              onChange={(e) => { handleBgmFolder(e.target.files); e.target.value = ""; }}
+            />
+            {bgmUploading ? "Uploading..." : bgmDir ? `✓ pustaka: ${bgmDir}` : "Pilih folder musik (explorer)..."}
+          </label>
+          <input
+            type="text"
+            value={bgmDir}
+            onChange={(e) => setBgmDir(e.target.value)}
+            placeholder="/app/data/bgm"
+            className="w-full rounded-xl border border-[#27272A] bg-[#000000] px-3 py-2.5 font-mono text-xs text-white placeholder:text-[#71717a] focus:border-[#B6FF3B]/40 focus:outline-none"
+          />
+        </label>
         <p className="mt-2 text-xs text-[#71717a]">
           Kosongkan = tanpa musik. Isi = audio di-mix otomatis dengan narasi TTS.
         </p>

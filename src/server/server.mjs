@@ -265,11 +265,30 @@ ${css}
 // ---------------------------------------------------------------------------
 // Pipeline
 // ---------------------------------------------------------------------------
+const BGM_EXTS = new Set([".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac"]);
+
+/** Ambil 1 file musik random dari folder (non-rekursif). null bila kosong/tidak ada. */
+function pickRandomMusic(dir) {
+  try {
+    const files = fs.readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isFile() && BGM_EXTS.has(path.extname(e.name).toLowerCase()))
+      .map((e) => path.join(dir, e.name));
+    if (!files.length) return null;
+    return files[Math.floor(Math.random() * files.length)];
+  } catch {
+    return null;
+  }
+}
 async function runPipeline(job, input) {
   const { videoPath, model, stretch, hzoom, caption, lead, tail, outputMode = "one", parts = 0, bgm } = input;
   const minutesPerPart = Number(input.minutesPerPart) > 0 ? Number(input.minutesPerPart) : (Number(process.env.MINUTES_PER_PART) > 0 ? Number(process.env.MINUTES_PER_PART) : 2);
   const defaultBgm = path.join(ROOT, "public", "bgm", "01. Novial Music - Into the Abyss.flac");
-  const bgmPath = bgm ? path.resolve(bgm) : (process.env.BGM_FILE ? path.resolve(process.env.BGM_FILE) : (fs.existsSync(defaultBgm) ? defaultBgm : undefined));
+  // bgmDir = folder pustaka musik -> pick 1 file random per run.
+  let dirPick = null;
+  const bgmDir = input.bgmDir || process.env.BGM_DIR;
+  if (!bgm && bgmDir) dirPick = pickRandomMusic(bgmDir);
+  if (dirPick) pushLog(job, `[bgm] random pick -> ${path.basename(dirPick)}`);
+  const bgmPath = bgm ? path.resolve(bgm) : (dirPick || (process.env.BGM_FILE ? path.resolve(process.env.BGM_FILE) : (fs.existsSync(defaultBgm) ? defaultBgm : undefined)));
   // Rekap full-spoiler berdurasi target (menit -> detik). Hanya untuk mode
   // One Short; mode split sudah punya kontrol panjangnya sendiri (minutesPerPart).
   const rawTargetMinutes = Number(input.targetMinutes) > 0 ? Number(input.targetMinutes) : 0;
@@ -596,7 +615,11 @@ const server = http.createServer(async (req, res) => {
   // --- API: upload video ----------------------------------------------------
   if (pathname === "/api/upload" && req.method === "POST") {
     const name = path.basename(url.searchParams.get("name") || "upload.mp4");
-    const dest = path.join(UPLOAD_DIR, name);
+    // dir dibatasi ke uploads|bgm (cegah path traversal).
+    const dirKey = url.searchParams.get("dir") === "bgm" ? "bgm" : "uploads";
+    const destDir = dirKey === "bgm" ? path.join(ROOT, "data", "bgm") : UPLOAD_DIR;
+    await fsp.mkdir(destDir, { recursive: true });
+    const dest = path.join(destDir, name);
     try {
       const w = fs.createWriteStream(dest);
       req.pipe(w);
@@ -705,6 +728,7 @@ const server = http.createServer(async (req, res) => {
       minutesPerPart: Number(input.minutesPerPart) > 0 ? Number(input.minutesPerPart) : (Number(process.env.MINUTES_PER_PART) > 0 ? Number(process.env.MINUTES_PER_PART) : 2),
       targetMinutes: input.targetMinutes !== undefined ? (Number(input.targetMinutes) > 0 ? Number(input.targetMinutes) : 0) : (Number(process.env.TARGET_MINUTES) > 0 ? Number(process.env.TARGET_MINUTES) : 3),
       bgm: input.bgm ? String(input.bgm) : undefined,
+      bgmDir: input.bgmDir ? String(input.bgmDir) : undefined,
       overlayMode: input.overlayMode === "image" || input.overlayMode === "css" ? input.overlayMode : "none",
       overlayImage: input.overlayImage ? String(input.overlayImage) : undefined,
       overlayHtml: input.overlayHtml ? String(input.overlayHtml).slice(0, 200000) : undefined,
@@ -729,15 +753,20 @@ const server = http.createServer(async (req, res) => {
   }
 
   // --- API: tambah/ganti BGM ke video jadi (tanpa AI, ffmpeg mix) -----------
-  // Body: { jobId, musicPath, level? } -> { ok, name }
-  // musicPath = hasil /api/upload (mis. /app/data/uploads/lagu.mp3).
+  // Body: { jobId, musicPath?, musicDir?, level? } -> { ok, name, picked? }
+  // musicPath = hasil /api/upload. musicDir = folder -> 1 file random.
   if (pathname === "/api/add-bgm" && req.method === "POST") {
     let body = "";
     for await (const chunk of req) body += chunk;
     let input;
     try { input = JSON.parse(body); } catch { input = {}; }
     const job = input.jobId ? dbGetJob(String(input.jobId)) : null;
-    const musicPath = input.musicPath;
+    let musicPath = input.musicPath;
+    let picked = null;
+    if (!musicPath && input.musicDir) {
+      picked = pickRandomMusic(String(input.musicDir));
+      if (picked) musicPath = picked;
+    }
     if (!job) {
       res.writeHead(404, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: "job tidak ditemukan" }));
@@ -750,7 +779,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (!musicPath || !fs.existsSync(musicPath)) {
       res.writeHead(400, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: false, error: "musicPath tidak valid (upload dulu via /api/upload)" }));
+      res.end(JSON.stringify({ ok: false, error: "musik tidak valid (isi musicPath via /api/upload, atau musicDir berisi mp3/wav/flac)" }));
       return;
     }
     const level = Math.min(1, Math.max(0, Number(input.level) > 0 ? Number(input.level) : 0.2));
@@ -780,7 +809,7 @@ const server = http.createServer(async (req, res) => {
       }
       pushLog(job, `[bgm] ${path.basename(srcVideo)} + ${path.basename(musicPath)} (level ${level}) -> ${outName}`);
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: true, name: outName }));
+      res.end(JSON.stringify({ ok: true, name: outName, picked: picked ? path.basename(picked) : undefined }));
     } catch (e) {
       res.writeHead(500, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: false, error: String(e.message || e).slice(0, 300) }));

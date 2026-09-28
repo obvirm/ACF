@@ -72,9 +72,9 @@ async function jsonFetch<T>(url: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
-export async function uploadVideo(file: File) {
+export async function uploadVideo(file: File, dir?: "uploads" | "bgm") {
   // server expects raw octet-stream, not multipart — see server.mjs /api/upload
-  const r = await fetch(`${BASE}/api/upload?name=${encodeURIComponent(file.name)}`, {
+  const r = await fetch(`${BASE}/api/upload?name=${encodeURIComponent(file.name)}${dir === "bgm" ? "&dir=bgm" : ""}`, {
     method: "POST",
     body: file,
     headers: { "Content-Type": "application/octet-stream" },
@@ -101,6 +101,7 @@ export interface RunPayload {
   minutesPerPart?: number;
   targetMinutes?: number;
   bgm?: string;
+  bgmDir?: string; // folder pustaka musik -> 1 file random per run
   overlayMode?: "none" | "image" | "css";
   overlayImage?: string;
   overlayHtml?: string;
@@ -132,14 +133,14 @@ export async function previewFrame(p: { videoPath: string; stretch?: number; hzo
   return { image: j.image, atSec: j.atSec };
 }
 
-export async function addBgm(p: { jobId: string; musicPath: string; level?: number }) {
-  const j = await jsonFetch<{ ok: boolean; name?: string; error?: string }>(`${BASE}/api/add-bgm`, {
+export async function addBgm(p: { jobId: string; musicPath?: string; musicDir?: string; level?: number }) {
+  const j = await jsonFetch<{ ok: boolean; name?: string; picked?: string; error?: string }>(`${BASE}/api/add-bgm`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(p),
   });
   if (!j.ok || !j.name) throw new Error(j.error || "add-bgm gagal");
-  return { name: j.name };
+  return { name: j.name, picked: j.picked };
 }
 
 export const getJobs = async () => (await jsonFetch<{ ok: boolean; jobs: JobsListItem[] }>(`${BASE}/api/jobs`)).jobs || [];

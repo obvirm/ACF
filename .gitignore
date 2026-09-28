@@ -26,6 +26,7 @@ browser/
 # Outputs video (GB-an)
 data/output/
 data/uploads/
+data/bgm/
 data/input/*.mp4
 *.mp4
 *.wav

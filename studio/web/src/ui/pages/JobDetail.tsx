@@ -36,6 +36,7 @@ export function JobDetail() {
   const [bgmLevel, setBgmLevel] = useState(0.2);
   const [bgmBusy, setBgmBusy] = useState(false);
   const [bgmError, setBgmError] = useState<string | null>(null);
+  const [bgmDir, setBgmDir] = useState<string>("");
   const handleBgmFile = async (f: File | undefined) => {
     if (!f) return;
     setBgmBusy(true);
@@ -50,12 +51,34 @@ export function JobDetail() {
       setBgmBusy(false);
     }
   };
-  const handleBgmMix = async () => {
-    if (!id || !bgmPath) { setBgmError("Upload file musik dulu"); return; }
+  const handleBgmFolder = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
     setBgmBusy(true);
     setBgmError(null);
     try {
-      await addBgm({ jobId: id, musicPath: bgmPath, level: bgmLevel });
+      let n = 0;
+      for (const f of Array.from(files)) {
+        if (!/audio\/|(\.mp3|\.wav|\.flac|\.ogg|\.m4a|\.aac)$/i.test(f.type + " " + f.name)) continue;
+        await uploadVideo(f, "bgm");
+        n++;
+      }
+      if (!n) throw new Error("tidak ada file audio di folder itu");
+      setBgmPath(null);
+      setBgmName(`${n} lagu`);
+      setBgmDir("/app/data/bgm");
+    } catch (e) {
+      setBgmError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBgmBusy(false);
+    }
+  };
+  const handleBgmMix = async () => {
+    if (!id || (!bgmPath && !bgmDir.trim())) { setBgmError("Upload file musik / isi folder dulu"); return; }
+    setBgmBusy(true);
+    setBgmError(null);
+    try {
+      const r = await addBgm({ jobId: id, musicPath: bgmPath || undefined, musicDir: !bgmPath && bgmDir.trim() ? bgmDir.trim() : undefined, level: bgmLevel });
+      if (r.picked) setBgmName(`random: ${r.picked}`);
       const j = await getJob(id);
       setJob(j);
     } catch (e) {
@@ -266,6 +289,15 @@ export function JobDetail() {
                 {bgmName ? bgmName : "Upload mp3/wav/flac..."}
                 <input type="file" accept="audio/*,.flac" className="hidden" onChange={(e) => handleBgmFile(e.target.files?.[0])} />
               </label>
+              <label className="mt-2 block cursor-pointer rounded-xl border border-dashed border-[#27272A] bg-[#000000] px-3 py-2 text-center text-xs text-[#71717a] hover:border-[#B6FF3B]/40">
+                {bgmDir ? `✓ pustaka: ${bgmDir}` : "atau pilih folder musik..."}
+                <input
+                  type="file" className="hidden"
+                  // @ts-expect-error webkitdirectory non-standar tapi didukung Chromium
+                  webkitdirectory=""
+                  onChange={(e) => { handleBgmFolder(e.target.files); e.target.value = ""; }}
+                />
+              </label>
               <div className="mt-2 flex items-center gap-2">
                 <span className="text-xs text-[#71717a]">Level</span>
                 <input
@@ -275,12 +307,19 @@ export function JobDetail() {
                 />
                 <button
                   onClick={handleBgmMix}
-                  disabled={bgmBusy || !bgmPath}
+                  disabled={bgmBusy || (!bgmPath && !bgmDir.trim())}
                   className="rounded-lg border border-[#B6FF3B]/40 bg-[#B6FF3B]/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-[#B6FF3B]/20 disabled:opacity-50 transition-colors"
                 >
                   {bgmBusy ? "..." : "Mix ke video"}
                 </button>
               </div>
+              <input
+                type="text"
+                value={bgmDir}
+                onChange={(e) => setBgmDir(e.target.value)}
+                placeholder="atau folder random: /app/data/bgm"
+                className="mt-2 w-full rounded-lg border border-[#27272A] bg-[#000000] px-3 py-1.5 font-mono text-xs text-white placeholder:text-[#71717a] focus:border-[#B6FF3B]/40 focus:outline-none"
+              />
               {bgmError && <p className="mt-1 text-xs text-red-400">{bgmError}</p>}
               <p className="mt-1 text-xs text-[#71717a]">Hasil: <code>final_with_bgm.mp4</code> di artifacts.</p>
             </div>
