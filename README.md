@@ -25,6 +25,10 @@ Mode `captionOnly` tersedia untuk caption ulang tanpa memanggil AI
 | Docker Desktop | host | build + run container |
 | Node 20+ & npm | host | sekali saja: build frontend |
 | VLM gateway OpenAI-compatible | host `:20128` | analisis video (model `ag/gemini-3.6-flash-high`) |
+
+> Catatan: host `:20128` adalah **Antigravity 9router** — gateway lokal yang
+> meneruskan request ke berbagai provider AI. Prefix `ag/` pada nama model
+> artinya model tersebut di-routing via gateway ini, bukan server OpenAI asli.
 | `audiocpp_server` (Higgs Audio v3) | host `:8080` | TTS voice-clone, model `omnivoice` |
 | File model TTS | `D:/compare/models/OmniVoice-GGUF/omnivoice-q8_0.gguf` | didaftarkan di `server.json` audiocpp |
 
