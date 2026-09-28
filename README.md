@@ -113,10 +113,13 @@ deskriptif, kronologis, tanpa slang, hook premis langsung di chunk pertama.
 
 ## Kredit
 
-Caption engine + template oleh **tscaps** — https://github.com/francozanardi/tscaps
-(`packages/engine` + `templates/`, lisensi MIT, oleh Franco Zanardi).
-Proyek ini memakai `@tscaps/engine` (vendored di `docker/vendor/`) dan
-template bawaannya sebagai basis caption.
+- Caption engine + template oleh **tscaps** — https://github.com/francozanardi/tscaps
+  (`packages/engine` + `templates/`, lisensi MIT, oleh Franco Zanardi).
+  Proyek ini memakai `@tscaps/engine` (vendored di `docker/vendor/`) dan
+  template bawaannya sebagai basis caption.
+- TTS server oleh **audio.cpp** — https://github.com/0xShug0/audio.cpp
+  (framework inferensi audio C++ di atas ggml; `audiocpp_server` = HTTP API
+  OpenAI-compatible untuk TTS/voice-clone seperti Higgs Audio v3 dan OmniVoice).
 
 ## Lisensi
 
