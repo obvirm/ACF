@@ -12,7 +12,7 @@ export interface PipelineOptions {
 }
 
 export async function runAnalysisPipeline(options: PipelineOptions) {
-  const { videoPath, outputDir, ollamaModel = "r9/ag/gemini-3.6-flash-high" } = options;
+  const { videoPath, outputDir, ollamaModel = "r9/ag/gemini-pro-agent" } = options;
   const actualModel = ollamaModel.replace("r9/", "").replace("gemini/", "");
 
   console.log("[1/5] Ensuring output directories...");

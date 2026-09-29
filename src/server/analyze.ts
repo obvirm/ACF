@@ -16,7 +16,7 @@ if (!videoPath || !outDir) {
 const manifestPath = await runAnalysisPipeline({
   videoPath,
   outputDir: outDir,
-  ollamaModel: model || "gemini/gemini-3.6-flash",
+  ollamaModel: model || "ag/gemini-pro-agent",
 });
 
 console.log("[analyze] manifest: " + manifestPath);

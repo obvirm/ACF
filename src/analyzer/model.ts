@@ -121,7 +121,7 @@ export async function analyzeChunkWithR9Video(
   videoPath: string,
   chunkStartSec: number,
   chunkEndSec: number,
-  modelName: string = "ag/gemini-3.6-flash-high",
+  modelName: string = "ag/gemini-pro-agent",
   transcript?: string,
   previousContext?: string,
   isFirstChunk: boolean = true
