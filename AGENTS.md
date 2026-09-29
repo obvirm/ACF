@@ -99,6 +99,7 @@ Atau: `npm run dev:ui`
 - **JANGAN OVER-ENGINEERING.** YAGNI — kerjakan tepat yang diminta.
 - **Jangan commit/push tanpa perintah eksplisit user.**
 - **Jangan eksekusi perintah destruktif git** tanpa arahan user.
+- **File tester/sementara WAJIB dihapus saat itu juga.** Tidak boleh ada sisa/bercak di repo, data user, atau folder mana pun.
 - **Thinking kelamaan = kabari user.**
 
 ## Hirarki Interaksi (WAJIB)
@@ -107,6 +108,8 @@ Atau: `npm run dev:ui`
 - Kalau user **nyuruh** → baru kerjakan sesuai permintaan.
 - Kalau ambigu → **tanya balik** "Mau saya ...?" sebelum action.
 - Contoh, larangan, atau keluhan BUKAN perintah edit. Edit hanya bila ada kata eksplisit: "minta", "tambah", "ubah", "perbaiki", "kerjakan", "gas", "commit", "push". Tanpa itu → jawab saja.
+- Perintah "running job" tanpa jenis = ambigu. Wajib tanya dulu: full / captionOnly / add-bgm / preview — sebelum submit apa pun.
+- DILARANG asumsi: videoPath, jobId, nama file, dan isi folder WAJIB dicek (log/dir/API) dulu sebelum dipakai. Asumsi = pelanggaran.
 
 ### 2. Jawab Singkat, Tidak Berbelit
 - Jawaban langsung, tidak perlu panjang. User bisa tanya lanjutan kalau butuh detail.

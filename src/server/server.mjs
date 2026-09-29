@@ -396,7 +396,19 @@ async function runPipeline(job, input) {
 
   // 1. ANALYSIS -------------------------------------------------------------
   pushStatus(job, "running", "analysis");
-  const manifestPath = path.join(job.dir, "manifest.json");
+  // RESUME (bypass AI): pakai manifest job lain, analysis dilewati total.
+  let resumeManifest = null;
+  if (input.resumeJob) {
+    const srcManifest = path.join(JOBS_DIR, path.basename(String(input.resumeJob)), "manifest.json");
+    if (!fs.existsSync(srcManifest)) throw new Error("resumeJob tidak punya manifest.json");
+    const rm = JSON.parse(await fsp.readFile(srcManifest, "utf8"));
+    if (!rm.scenes?.length) throw new Error("manifest resume kosong (0 scene)");
+    resumeManifest = path.join(job.dir, "manifest.json");
+    await fsp.copyFile(srcManifest, resumeManifest);
+    pushLog(job, `[resume] manifest dari ${path.basename(String(input.resumeJob))} (${rm.scenes.length} scene), analysis dilewati`);
+  }
+  const manifestPath = resumeManifest || path.join(job.dir, "manifest.json");
+  if (!resumeManifest) {
   await runNode(job, "ANALYSIS", "src/server/analyze.ts", [
     videoPath, job.dir, model,
   ], { env: { CHUNK_DURATION: String(chunkDuration), LANGUAGE: input.language || "Indonesian" } });
@@ -423,6 +435,7 @@ async function runPipeline(job, input) {
     throw new Error(`manifest.json tidak valid: ${e instanceof Error ? e.message : String(e)}`);
   }
   pushLog(job, "[analysis] selesai -> manifest.json");
+  } // end if (!resumeManifest)
 
   const rel = (p) => path.relative(job.dir, p).split(path.sep).join("/");
 
@@ -778,6 +791,7 @@ const server = http.createServer(async (req, res) => {
       ttsModel: typeof input.ttsModel === "string" && input.ttsModel.trim() ? input.ttsModel.trim() : undefined,
       language: (input.language || process.env.LANGUAGE || "Indonesian").toString(),
       captionOnly: input.captionOnly === true,
+      resumeJob: typeof input.resumeJob === "string" && input.resumeJob.trim() ? path.basename(input.resumeJob.trim()) : undefined,
     };
     const job = createJob(videoPath, sanitized);
     await fsp.mkdir(job.dir, { recursive: true });
