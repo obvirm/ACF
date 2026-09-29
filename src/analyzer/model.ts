@@ -156,23 +156,43 @@ ${previousContextBlock}${transcriptContext}
 Balas JSON SAJA (format contoh - JANGAN tiru teksnya):
 {"scenes":[{"start_sec":1,"end_sec":3,"description":"aksi visual konkret","narration_text":"narasi voice-over final","subject_x_pct":42}]}`;
 
-    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: "POST",
-      headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: modelName,
-        stream: false,
-        messages: [
-          { role: "system", content: STORYTELLER_SYSTEM_INSTRUCTION },
-          { role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:video/mp4;base64,${b64}` } }] }
-        ],
-        max_tokens: 2048
-      })
+    const reqBody = JSON.stringify({
+      model: modelName,
+      stream: false,
+      messages: [
+        { role: "system", content: STORYTELLER_SYSTEM_INSTRUCTION },
+        { role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:video/mp4;base64,${b64}` } }] }
+      ],
+      max_tokens: 2048
     });
 
-    if (!response.ok) {
-      const errBody = await response.text().catch(() => "");
-      console.error(`[VLM] chunk ${chunkStartSec}s-${chunkEndSec}s HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+    // Retry otomatis: network gagal/timeout, HTTP 429, 5xx. Langsung gagal untuk 4xx lain.
+    const waits = [10_000, 30_000, 60_000];
+    let response: Response | null = null;
+    let lastErr = "";
+    for (let attempt = 1; attempt <= 4; attempt++) {
+      try {
+        response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${OPENAI_API_KEY}`, "Content-Type": "application/json" },
+          body: reqBody,
+          signal: AbortSignal.timeout(600_000),
+        });
+        if (response.ok) break;
+        if (response.status !== 429 && response.status < 500) break;
+        lastErr = `HTTP ${response.status}`;
+        console.error(`[VLM] chunk ${chunkStartSec}s-${chunkEndSec}s percobaan ${attempt} gagal (${lastErr}), retry...`);
+      } catch (e: any) {
+        response = null;
+        lastErr = e.cause?.code || e.message || String(e);
+        console.error(`[VLM] chunk ${chunkStartSec}s-${chunkEndSec}s percobaan ${attempt} gagal (${lastErr}), retry...`);
+      }
+      if (attempt <= 3) await new Promise((ok) => setTimeout(ok, waits[attempt - 1]));
+    }
+
+    if (!response || !response.ok) {
+      const errBody = response ? await response.text().catch(() => "") : "";
+      console.error(`[VLM] chunk ${chunkStartSec}s-${chunkEndSec}s GAGAL setelah 4x (${lastErr}): ${errBody.slice(0, 200)}`);
       return { scenes: [] };
     }
     const data = await response.json() as any;
