@@ -430,7 +430,7 @@ async function runPipeline(job, input) {
   const ttsModel = input.ttsModel || process.env.TTS_MODEL || "higgs-tts-q4";
   httpTtsArgs.push("--model", ttsModel);
   pushLog(job, `[tts] model -> ${ttsModel}`);
-  await run(job, `TTS HTTP (Higgs Audio v3)`, process.execPath, [...httpTtsArgs]);
+  await run(job, `TTS HTTP (${ttsModel})`, process.execPath, [...httpTtsArgs]);
   pushLog(job, `[tts] selesai -> ${rel(fullNarrationWav)}`);
 
   // 2.5 SPLIT post-TTS (opsional) ------------------------------------------------
