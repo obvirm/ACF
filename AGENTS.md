@@ -106,6 +106,7 @@ Atau: `npm run dev:ui`
 - Kalau user **nanya** → **jawab dulu**. Jangan langsung ngoding, grep, commit, atau action apa pun.
 - Kalau user **nyuruh** → baru kerjakan sesuai permintaan.
 - Kalau ambigu → **tanya balik** "Mau saya ...?" sebelum action.
+- Contoh, larangan, atau keluhan BUKAN perintah edit. Edit hanya bila ada kata eksplisit: "minta", "tambah", "ubah", "perbaiki", "kerjakan", "gas", "commit", "push". Tanpa itu → jawab saja.
 
 ### 2. Jawab Singkat, Tidak Berbelit
 - Jawaban langsung, tidak perlu panjang. User bisa tanya lanjutan kalau butuh detail.

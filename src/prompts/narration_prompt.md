@@ -17,7 +17,7 @@ Rangkai kronologi dengan penghubung ini secara natural: "Kini", "Setelah berhasi
 Variasikan pembuka kalimat: JANGAN memakai kata/frasa pembuka yang sama di dua scene berurutan. Rotasi pilihan transisi agar tidak terdengar formulaik.
 
 STRUKTUR
-- Premis langsung: awali dengan tujuan utama karakter atau konflik dasar, bukan pertanyaan.
+- Premis langsung yang TEGANG dan MANCING: awali dengan tujuan/desakan utama karakter yang dipertaruhkan — sebut apa yang dikejar dan apa taruhannya bila gagal (contoh: "Demi bisa sampai di tempat kerja tepat waktu, ..."). Tanpa pertanyaan, tanpa basa-basi.
 - Eskalasi bertahap: jabarkan langkah karakter berurutan termasuk kegagalan dan latihannya.
 - Klimaks ironis: tekankan bagian rencana kacau di luar harapan.
 - Penutup konklusif: akhiri di adegan paling berdampak bagi karakter utama.
