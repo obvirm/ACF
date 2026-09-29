@@ -74,6 +74,7 @@ await initDb(DB_DIR);
 
 // In-memory runtime state (process refs, WebSocket log buffers)
 const runtime = new Map(); // jobId -> { _proc, logBuffer[] }
+let pumping = false; // guard antrean FIFO (dideklarasi awal agar startup recovery bisa pakai)
 
 /** Load persisted jobs from SQLite on startup. Scans filesystem for legacy jobs not yet in DB. */
 function loadPersistedJobs() {
@@ -132,12 +133,58 @@ function loadPersistedJobs() {
 }
 loadPersistedJobs();
 
+// Job yatim (mati saat server restart): tandai error + jalankan antrean.
+for (const j of dbListJobs(100)) {
+  if (j.status === "running") {
+    updateJob(j.id, { status: "error", error: "terinterupsi restart server", finishedAt: new Date().toISOString() });
+  }
+}
+pumpQueue();
+
 function createJob(videoPath, config) {
   const id = `${Date.now()}-${randomUUID().slice(0, 6)}`;
   const dir = path.join(JOBS_DIR, id);
   insertJob({ id, dir, status: "queued", videoPath, config, createdAt: new Date().toISOString() });
   runtime.set(id, { _proc: null, logBuffer: [] });
   return dbGetJob(id);
+}
+
+// ---------------------------------------------------------------------------
+// Antrean FIFO — tetap 1 job jalan (host RAM/VRAM terbatas), sisanya menunggu.
+// ---------------------------------------------------------------------------
+function queuePosition(jobId) {
+  const all = dbListJobs(100)
+    .filter((j) => j.status === "running" || j.status === "queued")
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  return all.findIndex((j) => j.id === jobId);
+}
+
+async function pumpQueue() {
+  if (pumping) return;
+  pumping = true;
+  try {
+    for (;;) {
+      if (dbListJobs(10).some((j) => j.status === "running")) return;
+      const queued = dbListJobs(100).filter((j) => j.status === "queued");
+      if (!queued.length) return;
+      // created_at DESC -> antrean terlama di akhir
+      const next = dbGetJob(queued[queued.length - 1].id);
+      if (!next || next.status !== "queued") continue;
+      pushLog(next, `[queue] giliran jalan`);
+      try {
+        await runPipeline(next, next.config || {});
+      } catch (e) {
+        const cur = dbGetJob(next.id);
+        if (cur && cur.status !== "cancelled") {
+          updateJob(next.id, { error: e.message });
+          pushLog(next, `\n❌ Pipeline error: ${e.message}`, "err");
+          pushStatus(next, "error");
+        }
+      }
+    }
+  } finally {
+    pumping = false;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -701,13 +748,7 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({ ok: false, error: "videoPath tidak valid" }));
       return;
     }
-    // Concurrency guard: hanya satu job aktif sekaligus (host RAM/VRAM terbatas)
-    const activeJob = dbListJobs(10).find((j) => j.status === "running");
-    if (activeJob) {
-      res.writeHead(409, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: false, error: `Job #${activeJob.id} masih berjalan. Tunggu selesai atau batalkan dulu.` }));
-      return;
-    }
+    // Tanpa guard 409: job masuk antrean FIFO, worker jalan satu per satu.
     const sanitized = {
       videoPath,
       model: input.model || process.env.MODEL_NAME || "gemini/gemini-3.6-flash",
@@ -740,15 +781,11 @@ const server = http.createServer(async (req, res) => {
     };
     const job = createJob(videoPath, sanitized);
     await fsp.mkdir(job.dir, { recursive: true });
+    const pos = queuePosition(job.id);
+    pushLog(job, pos <= 0 ? `[queue] langsung jalan` : `[queue] menunggu giliran (antrean #${pos})`);
     res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: true, jobId: job.id }));
-    runPipeline(job, sanitized).catch((e) => {
-      if (job.status !== "cancelled") {
-        updateJob(job.id, { error: e.message });
-        pushLog(job, `\n❌ Pipeline error: ${e.message}`, "err");
-        pushStatus(job, "error");
-      }
-    });
+    res.end(JSON.stringify({ ok: true, jobId: job.id, queued: pos > 0, position: pos < 0 ? 0 : pos }));
+    pumpQueue();
     return;
   }
 
@@ -835,6 +872,7 @@ const server = http.createServer(async (req, res) => {
     pushStatus(job, "cancelled");
     res.writeHead(200, { "content-type": "application/json" });
     res.end(JSON.stringify({ ok: true }));
+    pumpQueue();
     return;
   }
 
