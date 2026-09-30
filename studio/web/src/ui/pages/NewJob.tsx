@@ -18,7 +18,7 @@ export function NewJob() {
   const [error, setError] = useState<string | null>(null);
   const [activeRunningJob, setActiveRunningJob] = useState<string | null>(null);
 
-  const [model, setModel] = useState("ag/gemini-pro-agent");
+  const [model, setModel] = useState("ag/gemini-3.6-flash-high");
   const [chunk, setChunk] = useState(true);
   const [outputMode, setOutputMode] = useState<"one" | "auto" | "manual">("one");
   const [minutesPerPart, setMinutesPerPart] = useState(2);
@@ -331,7 +331,7 @@ export function NewJob() {
             <input
               value={model}
               onChange={(e) => setModel(e.target.value)}
-              placeholder="ag/gemini-pro-agent"
+              placeholder="ag/gemini-3.6-flash-high"
               className="w-full rounded-xl border border-[#27272A] bg-[#000000] px-3 py-2.5 text-sm text-white placeholder:text-[#71717a] focus:border-[#B6FF3B]/40 focus:outline-none"
             />
             <span className="text-xs text-[#71717a]">OpenAI Compatible via OPENAI_BASE_URL</span>

@@ -26,23 +26,24 @@ COPY docker/vendor ./docker/vendor
 RUN npm ci --omit=dev=false --no-audit --no-fund \
  && npm install --no-save --no-audit --no-fund @rolldown/binding-linux-x64-gnu@1.2.8
 
+# --- Whisper ONNX (caption tscaps) — salin dari image lama (offline, cepat).
+# Jaringan HF ke sini ~0.1 MB/s, download 400MB = 50+ menit & sering hang.
+# Machine baru tanpa image lama: ganti COPY --from dengan RUN wget (ada di git history).
+COPY --from=movie2short:linux /root/.cache/huggingface/hub /root/.cache/huggingface/hub
+# Guard: kalau file kurang, unduh dengan timeout (gak hang tanpa batas).
+RUN EN=/root/.cache/huggingface/hub/models--onnx-community--whisper-medium_timestamped/snapshots/default/onnx/encoder_model_quantized.onnx \
+ && DEC=/root/.cache/huggingface/hub/models--onnx-community--whisper-medium_timestamped/snapshots/default/onnx/decoder_model_merged_quantized.onnx \
+ && if [ ! -f "$EN" ] || [ ! -f "$DEC" ]; then \
+      cd "$(dirname "$EN")" && \
+      wget -q -T 30 -t 3 "https://huggingface.co/onnx-community/whisper-medium_timestamped/resolve/main/onnx/encoder_model_quantized.onnx" && \
+      wget -q -T 30 -t 3 "https://huggingface.co/onnx-community/whisper-medium_timestamped/resolve/main/onnx/decoder_model_merged_quantized.onnx"; \
+    fi
+
 # --- frontend: build di host, tinggal COPY dist ---
 COPY studio/web/dist ./studio/web/dist
 
 # --- source backend/pipeline ---
 COPY src ./src
-
-# --- Whisper ONNX (caption tscaps) dibake ke image — tanpa download saat run ---
-# Layout = cache transformers.js; diserve entrypoint via :8877. Cuma model
-# medium (kualitas tertinggi pipeline) supaya image tidak bengkak.
-RUN mkdir -p /root/.cache/huggingface/hub/models--onnx-community--whisper-medium_timestamped/snapshots/default/onnx \
- && cd /root/.cache/huggingface/hub/models--onnx-community--whisper-medium_timestamped/snapshots/default \
- && for f in config.json tokenizer_config.json generation_config.json merges.txt vocab.json tokenizer.json preprocessor_config.json; do \
-      wget -q "https://huggingface.co/onnx-community/whisper-medium_timestamped/resolve/main/$f"; \
-    done \
- && cd onnx \
- && wget -q https://huggingface.co/onnx-community/whisper-medium_timestamped/resolve/main/onnx/encoder_model_quantized.onnx \
- && wget -q https://huggingface.co/onnx-community/whisper-medium_timestamped/resolve/main/onnx/decoder_model_merged_quantized.onnx
 
 # --- entrypoint ---
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh

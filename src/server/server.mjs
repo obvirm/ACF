@@ -764,7 +764,7 @@ const server = http.createServer(async (req, res) => {
     // Tanpa guard 409: job masuk antrean FIFO, worker jalan satu per satu.
     const sanitized = {
       videoPath,
-      model: input.model || process.env.MODEL_NAME || "ag/gemini-pro-agent",
+      model: input.model || process.env.MODEL_NAME || "gemini/gemini-3.6-flash",
       chunk: input.chunk !== undefined
         ? (typeof input.chunk === "boolean" ? input.chunk : Number(input.chunk))
         : true, // true = 40s chunks; false = full video
