@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { cancelJob, connectJobWS, fileUrl, getJob, getJobLog, addBgm, uploadVideo, type Job, type JobLogEntry } from "@/app/api/client";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { cancelJob, connectJobWS, fileUrl, getJob, getJobLog, addBgm, uploadVideo, runPipeline, type Job, type JobLogEntry } from "@/app/api/client";
 import { LogViewer } from "@/ui/components/LogViewer";
 import { VideoPlayer } from "@/ui/components/VideoPlayer";
 import { ArtifactList } from "@/ui/components/ArtifactList";
 import { StatusBadge, StageBadge } from "@/ui/components/StatusBadge";
-import { AlertCircle, ArrowLeft, Ban, Loader2, RefreshCw, Download, Sparkles } from "lucide-react";
+import { AlertCircle, ArrowLeft, Ban, Loader2, RefreshCw, Download, Sparkles, RotateCcw } from "lucide-react";
 
 function fmtDate(v?: string | null): string {
   if (!v) return "—";
@@ -26,6 +26,7 @@ function durStr(start?: string | null, end?: string | null): string {
 
 export function JobDetail() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [job, setJob] = useState<Job | null>(null);
   const [logs, setLogs] = useState<JobLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +38,8 @@ export function JobDetail() {
   const [bgmBusy, setBgmBusy] = useState(false);
   const [bgmError, setBgmError] = useState<string | null>(null);
   const [bgmDir, setBgmDir] = useState<string>("");
+  const [resumeBusy, setResumeBusy] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
   const handleBgmFile = async (f: File | undefined) => {
     if (!f) return;
     setBgmBusy(true);
@@ -161,6 +164,23 @@ export function JobDetail() {
     }
   };
 
+  const handleResume = async () => {
+    if (!id || !job?.videoPath) {
+      setResumeError("Job ini tidak punya videoPath — resume tidak bisa, jalankan ulang dari New Job.");
+      return;
+    }
+    setResumeBusy(true);
+    setResumeError(null);
+    try {
+      const { jobId } = await runPipeline({ ...(job.config || {}), videoPath: job.videoPath, resumeJob: id });
+      navigate(`/jobs/${jobId}`);
+    } catch (e) {
+      setResumeError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResumeBusy(false);
+    }
+  };
+
   if (loading && !job) {
     return (
       <div className="flex items-center gap-2 rounded-2xl bg-[#0A0A0A] border border-[#27272A] p-6 text-sm text-[#a1a1aa]">
@@ -184,6 +204,14 @@ export function JobDetail() {
 
   if (!job || !id) return null;
 
+  const hasManifestLog = logs.some((l) => l.line.includes("[analysis] selesai") || l.line.includes("[resume] manifest"));
+  const canResume = job.status === "error" && !!job.videoPath && hasManifestLog;
+  const resumeDisabledReason = !job.videoPath
+    ? "videoPath tidak ada di job ini"
+    : !hasManifestLog
+      ? "Analysis belum selesai (belum ada manifest) — harus ulang penuh dari New Job"
+      : "";
+
   const videoArtifacts = job.artifacts.filter(
     (a, i, arr) => a.kind === "video" && arr.findIndex((b) => b.name === a.name) === i
   );
@@ -203,6 +231,16 @@ export function JobDetail() {
           >
             <RefreshCw className="h-3.5 w-3.5" /> Refresh
           </button>
+          {job.status === "error" && (
+            <button
+              onClick={handleResume}
+              disabled={!canResume || resumeBusy}
+              title={canResume ? "Resume: pakai manifest analysis job ini, lanjut condense → TTS → render → caption" : resumeDisabledReason}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#B6FF3B] px-3 py-1.5 text-xs font-black text-black hover:bg-[#9AE600] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <RotateCcw className={`h-3.5 w-3.5 ${resumeBusy ? "animate-spin" : ""}`} /> {resumeBusy ? "Resume…" : "Resume"}
+            </button>
+          )}
           {(job.status === "running" || job.status === "queued") && (
             <button
               onClick={handleCancel}
@@ -235,6 +273,7 @@ export function JobDetail() {
           </div>
         </div>
         {job.error && <div className="mt-3 rounded-xl bg-red-950 border border-red-900 p-3 text-sm text-red-300">{job.error}</div>}
+        {resumeError && <div className="mt-3 rounded-xl bg-red-950 border border-red-900 p-3 text-sm text-red-300">{resumeError}</div>}
         {job.status === "running" && <p className="mt-2 text-xs text-amber-400">Pipeline berjalan. Jangan tutup tab — log streaming via WS.</p>}
       </div>
 

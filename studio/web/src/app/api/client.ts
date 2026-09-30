@@ -16,6 +16,8 @@ export interface Job {
   status: JobStatus;
   stage: JobStage;
   error: string | null;
+  videoPath: string | null;
+  config: RunPayload | null;
   createdAt: string;
   finishedAt: string | null;
   artifacts: JobArtifact[];
@@ -110,6 +112,7 @@ export interface RunPayload {
   ttsModel?: string; // TTS model id (default: env TTS_MODEL atau higgs-tts-q4)
   language?: string; // TTS/Whisper language (default: "Indonesian")
   whisperQuality?: "tiny" | "base" | "small" | "medium";
+  resumeJob?: string; // id job lama -> analysis dilewati, pakai manifest-nya
 }
 
 export async function runPipeline(p: RunPayload) {

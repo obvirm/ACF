@@ -944,6 +944,8 @@ const server = http.createServer(async (req, res) => {
         status: job.status,
         stage: job.stage,
         error: job.error,
+        videoPath: job.videoPath,
+        config: job.config,
         createdAt: job.createdAt,
         finishedAt: job.finishedAt,
         artifacts,
