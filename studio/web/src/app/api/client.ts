@@ -89,6 +89,7 @@ export async function uploadVideo(file: File, dir?: "uploads" | "bgm") {
 export interface RunPayload {
   videoPath: string;
   model?: string;
+  prompt?: string;
   chunk?: boolean | number;
   stretch?: number;
   hzoom?: number;

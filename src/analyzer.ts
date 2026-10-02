@@ -8,11 +8,12 @@ export interface PipelineOptions {
   videoPath: string;
   outputDir: string;
   intervalSec?: number;
-  ollamaModel?: string; 
+  ollamaModel?: string;
+  prompt?: string;
 }
 
 export async function runAnalysisPipeline(options: PipelineOptions) {
-  const { videoPath, outputDir, ollamaModel = "r9/ag/gemini-3.6-flash-high" } = options;
+  const { videoPath, outputDir, ollamaModel = "r9/ag/gemini-3.6-flash-high", prompt } = options;
   const actualModel = ollamaModel.replace("r9/", "").replace("gemini/", "");
 
   console.log("[1/5] Ensuring output directories...");
@@ -65,7 +66,7 @@ export async function runAnalysisPipeline(options: PipelineOptions) {
 
     console.log("       Chunk " + cs + "s-" + ce + "s | MP4 audio+visual via OpenAI Compatible");
 
-    const r = await analyzeChunkWithR9Video(videoPath, cs, ce, actualModel, chunkTranscript, previousNarration, cs === 0);
+    const r = await analyzeChunkWithR9Video(videoPath, cs, ce, actualModel, chunkTranscript, previousNarration, cs === 0, prompt);
 
     if (r.scenes.length > 0) {
       const scenesWithGlobalIds = r.scenes.map((scene, index) => ({
@@ -87,6 +88,6 @@ export async function runAnalysisPipeline(options: PipelineOptions) {
   console.log("- Stage 1 manifest: " + stage1Manifest);
   console.log("- Stage 1 narasi: " + stage1Narasi);
 
-  const manifestPath = await synthesizeNarration(stage1Manifest, outputDir, transcript);
+  const manifestPath = await synthesizeNarration(stage1Manifest, outputDir, transcript, prompt);
   return manifestPath;
 }

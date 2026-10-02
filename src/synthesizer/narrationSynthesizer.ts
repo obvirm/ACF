@@ -16,7 +16,7 @@ const REF_EXAMPLES = [
   `Nah, ternyata setelah ditinggal SpongeBob, Krusty Krab jadi kacau balau.`
 ];
 
-export async function synthesizeNarration(manifestPath: string, outputDir: string, transcript?: string): Promise<string> {
+export async function synthesizeNarration(manifestPath: string, outputDir: string, transcript?: string, extraPrompt?: string): Promise<string> {
   console.log(`[Stage 2] Starting...`);
 
   const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
@@ -69,7 +69,7 @@ Aturan:
 - Pakai sisipan ringan: wak, coy, dong (secukupnya, jangan berlebihan)
 - Transisi natural: Nah, Kemudian, Tapi ternyata
 - JANGAN ulangi narasi sebelumnya
-- Storytelling deskriptif, bukan berita
+- Storytelling deskriptif, bukan berita${extraPrompt?.trim() ? `\n- Ikuti instruksi tambahan: ${extraPrompt.trim()}` : ""}
 
 Narasi:`;
 

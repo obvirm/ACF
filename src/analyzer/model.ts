@@ -124,7 +124,8 @@ export async function analyzeChunkWithR9Video(
   modelName: string = "ag/gemini-3.6-flash-high",
   transcript?: string,
   previousContext?: string,
-  isFirstChunk: boolean = true
+  isFirstChunk: boolean = true,
+  extraPrompt?: string
 ): Promise<VlmResponse> {
   const chunkDuration = chunkEndSec - chunkStartSec;
   if (chunkDuration <= 0) return { scenes: [] };
@@ -160,7 +161,7 @@ Balas JSON SAJA (format contoh - JANGAN tiru teksnya):
       model: modelName,
       stream: false,
       messages: [
-        { role: "system", content: STORYTELLER_SYSTEM_INSTRUCTION },
+        { role: "system", content: extraPrompt?.trim() ? `${STORYTELLER_SYSTEM_INSTRUCTION}\n\nINSTRUKSI TAMBAHAN (ikuti):\n${extraPrompt.trim()}` : STORYTELLER_SYSTEM_INSTRUCTION },
         { role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:video/mp4;base64,${b64}` } }] }
       ],
       max_tokens: 2048

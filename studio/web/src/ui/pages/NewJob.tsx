@@ -19,6 +19,7 @@ export function NewJob() {
   const [activeRunningJob, setActiveRunningJob] = useState<string | null>(null);
 
   const [model, setModel] = useState("ag/gemini-3.6-flash-high");
+  const [prompt, setPrompt] = useState("");
   const [chunk, setChunk] = useState(true);
   const [outputMode, setOutputMode] = useState<"one" | "auto" | "manual">("one");
   const [minutesPerPart, setMinutesPerPart] = useState(2);
@@ -222,6 +223,7 @@ export function NewJob() {
       const { jobId } = await runPipeline({
         videoPath,
         model: model || undefined,
+        prompt: prompt.trim() || undefined,
         chunk: chunk ? 40 : false,
         stretch: stretch !== undefined && !Number.isNaN(stretch) ? stretch : undefined,
         hzoom: hzoom !== undefined && !Number.isNaN(hzoom) ? hzoom : undefined,
@@ -541,6 +543,18 @@ export function NewJob() {
               onChange={(e) => setTail(Number(e.target.value))}
               className="w-full rounded-xl border border-[#27272A] bg-[#000000] px-3 py-2.5 text-sm text-white focus:border-[#B6FF3B]/40 focus:outline-none"
             />
+          </label>
+
+          <label className="space-y-1.5 sm:col-span-2">
+            <span className="text-xs font-bold tracking-wide text-[#a1a1aa]">Prompt (opsional)</span>
+            <textarea
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              rows={3}
+              placeholder="Instruksi tambahan buat AI, mis. fokus ke adegan aksi, gaya narasi horor, jangan pakai bahasa gaul..."
+              className="w-full rounded-xl border border-[#27272A] bg-[#000000] px-3 py-2.5 text-sm text-white placeholder:text-[#71717a] focus:border-[#B6FF3B]/40 focus:outline-none"
+            />
+            <span className="text-xs text-[#71717a]">Kosongkan = prompt default. Dikirim ke VLM analisis + narasi stage 2.</span>
           </label>
         </div>
 

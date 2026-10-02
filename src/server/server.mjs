@@ -327,7 +327,7 @@ function pickRandomMusic(dir) {
   }
 }
 async function runPipeline(job, input) {
-  const { videoPath, model, stretch, hzoom, caption, lead, tail, outputMode = "one", parts = 0, bgm } = input;
+  const { videoPath, model, stretch, hzoom, caption, lead, tail, outputMode = "one", parts = 0, bgm, prompt } = input;
   const minutesPerPart = Number(input.minutesPerPart) > 0 ? Number(input.minutesPerPart) : (Number(process.env.MINUTES_PER_PART) > 0 ? Number(process.env.MINUTES_PER_PART) : 2);
   const defaultBgm = path.join(ROOT, "public", "bgm", "01. Novial Music - Into the Abyss.flac");
   // bgmDir = folder pustaka musik -> pick 1 file random per run.
@@ -349,6 +349,7 @@ async function runPipeline(job, input) {
     : typeof input.chunk === "boolean" ? (input.chunk ? 40 : 0) : Number(input.chunk);
   pushLog(job, `Video  : ${videoPath}`);
   pushLog(job, `Model  : ${model}`);
+  if (prompt) pushLog(job, `Prompt : ${prompt.slice(0, 150)}${prompt.length > 150 ? "..." : ""}`);
   const modeLabel = outputMode === "manual" ? `Manual Split (${parts} part)` : outputMode === "auto" ? `Auto Split (target ${minutesPerPart} menit/part)` : "One Short";
   pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
 
@@ -410,7 +411,7 @@ async function runPipeline(job, input) {
   const manifestPath = resumeManifest || path.join(job.dir, "manifest.json");
   if (!resumeManifest) {
   await runNode(job, "ANALYSIS", "src/server/analyze.ts", [
-    videoPath, job.dir, model,
+    videoPath, job.dir, model, ...(prompt ? [prompt] : []),
   ], { env: { CHUNK_DURATION: String(chunkDuration), LANGUAGE: input.language || "Indonesian" } });
   // Cek hasil analysis: manifest.json harus ada & punya scenes
   if (!fs.existsSync(manifestPath)) {
@@ -765,6 +766,7 @@ const server = http.createServer(async (req, res) => {
     const sanitized = {
       videoPath,
       model: input.model || process.env.MODEL_NAME || "gemini/gemini-3.6-flash",
+      prompt: typeof input.prompt === "string" && input.prompt.trim() ? input.prompt.trim().slice(0, 4000) : undefined,
       chunk: input.chunk !== undefined
         ? (typeof input.chunk === "boolean" ? input.chunk : Number(input.chunk))
         : true, // true = 40s chunks; false = full video
