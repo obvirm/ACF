@@ -37,7 +37,9 @@ interface Args {
 const args = parseArgs(process.argv.slice(2));
 run(args).catch((error) => {
   console.error('[tscaps-template-cli] FAILED:', error);
-  process.exitCode = 1;
+  // Hard exit: handle sisa Chrome/vite bisa menggantung event loop sehingga
+  // proses tidak pernah keluar (job server lalu stuck selamanya).
+  process.exit(1);
 });
 
 async function run(options: Args): Promise<void> {
@@ -75,36 +77,45 @@ async function run(options: Args): Promise<void> {
   console.log(`[tscaps-template-cli] bundle: ${options.template} (css ${css.length} chars${filtersSvg ? `, svg ${filtersSvg.length}` : ''})`);
 
   // 3. stage video only (Whisper akan ekstrak audio sendiri dari video blob)
+  requireFreeSpace(PUBLIC_DIR, 1_000_000_000);
   await mkdir(PUBLIC_DIR, { recursive: true });
   await copyFile(path.resolve(options.video), path.join(PUBLIC_DIR, 'input.mp4'));
   console.log(`[tscaps-template-cli] Staged video: ${options.video}`);
 
   const output = path.resolve(options.output);
   await mkdir(path.dirname(output), { recursive: true });
+  requireFreeSpace(path.dirname(output), 1_000_000_000);
   // SRT pendamping: eksplisit via --srt-out, default ganti ekstensi output.
   const srtOut = options.srtOut
     ? path.resolve(options.srtOut)
     : output.replace(/\.mp4$/i, '.srt');
 
-  // 4. vite + chromium
-  const server = await startServer();
-  try {
-    const executablePath = process.env.TSCAPS_CHROME_PATH || findBundledChrome();
-    // Profil persisten (volume mount) agar cache model whisper (~1 GB) tidak
-    // dibangun ulang dari nol setiap run. Tanpa ini tiap caption = download +
-    // tulis disk raksasa + QuotaExceededError berulang.
-    const userDataDir = process.env.CHROME_USER_DATA_DIR || '/tmp/m2s-chrome-profile';
-    await mkdir(userDataDir, { recursive: true });
-    // Lock basi dari container/proses mati (profile persisten di volume) —
-    // tanpa ini Chrome menolak start. Concurrency guard server = 1 job aktif.
-    for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
-      try { fs.rmSync(path.join(userDataDir, f), { force: true }); } catch {}
-    }
-    const context = await chromium.launchPersistentContext(userDataDir, { executablePath, headless: true });
+  // 4. vite + chromium — dengan preflight + retry (transient 404/vite crash
+  //    pernah mematikan caption tanpa percobaan ulang).
+  const executablePath = process.env.TSCAPS_CHROME_PATH || findBundledChrome();
+  // Profil persisten (volume mount) agar cache model whisper (~1 GB) tidak
+  // dibangun ulang dari nol setiap run. Tanpa ini tiap caption = download +
+  // tulis disk raksasa + QuotaExceededError berulang.
+  const userDataDir = process.env.CHROME_USER_DATA_DIR || '/tmp/m2s-chrome-profile';
+  await mkdir(userDataDir, { recursive: true });
+  // Lock basi dari container/proses mati (profile persisten di volume) —
+  // tanpa ini Chrome menolak start. Concurrency guard server = 1 job aktif.
+  for (const f of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    try { fs.rmSync(path.join(userDataDir, f), { force: true }); } catch {}
+  }
+
+  const MAX_ATTEMPTS = 2;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const server = await startServer();
+    let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | null = null;
+    let fd: number | null = null;
+    let received = 0;
+    try {
+      await waitInputServed(server);
       // Transfer hasil via binding per-chunk (base64) langsung ke file output.
       // Tidak lewat pipeline download browser: rapuh saat disk sistem (C:) penuh.
-      let fd: number | null = null;
-      let received = 0;
+      context = await chromium.launchPersistentContext(userDataDir, { executablePath, headless: true });
       await context.exposeFunction('m2sSaveChunk', async (payload: { index: number; b64: string; last: boolean }) => {
         if (fd === null) fd = fs.openSync(output, 'w');
         const buf = Buffer.from(payload.b64, 'base64');
@@ -122,22 +133,64 @@ async function run(options: Args): Promise<void> {
       const page = await context.newPage();
       page.on('console', (msg) => console.log(`[page ${msg.type()}] ${msg.text()}`));
       page.on('pageerror', (error) => console.error('[page error]', error.message));
+      page.on('requestfailed', (req) => console.error('[page requestfailed]', req.url(), req.failure()?.errorText));
       const url = `${resolveUrl(server)}template.html` +
         `?width=${options.width}&height=${options.height}&output=${encodeURIComponent(path.basename(output))}` +
         (options.language ? `&language=${encodeURIComponent(options.language)}` : '') +
         `&whisper_quality=${encodeURIComponent(options.whisperQuality || 'medium')}`;
-      console.log(`[tscaps-template-cli] Opening ${url}`);
-      try {
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 300_000 });
-        await page.evaluate(() => window.renderMovie2short());
-      } finally {
-        if (fd !== null) { try { fs.closeSync(fd); } catch {} fd = null; }
-      }
+      console.log(`[tscaps-template-cli] Opening ${url} (attempt ${attempt}/${MAX_ATTEMPTS})`);
+      await page.goto(url, { waitUntil: 'networkidle', timeout: 90_000 });
+      await page.evaluate(() => window.renderMovie2short());
       console.log(`[tscaps-template-cli] Wrote ${output} (${received} bytes)`);
       await context.close();
-  } finally {
-    await server.close();
+      context = null;
+      return;
+    } catch (error) {
+      lastError = error;
+      console.error(`[tscaps-template-cli] attempt ${attempt}/${MAX_ATTEMPTS} gagal:`, error);
+    } finally {
+      if (fd !== null) { try { fs.closeSync(fd); } catch {} fd = null; }
+      if (context) { try { await Promise.race([context.close(), sleep(5_000)]); } catch {} }
+      await Promise.race([server.close(), sleep(5_000)]);
+    }
+    if (attempt < MAX_ATTEMPTS) await sleep(3_000);
   }
+  throw lastError;
+}
+
+// Gagal cepat & jelas kalau disk penuh — jangan sampai 404/vite crash membingungkan.
+function requireFreeSpace(dir: string, minBytes: number): void {
+  let free = -1;
+  try {
+    const s = fs.statfsSync(dir);
+    free = s.bavail * s.bsize;
+  } catch { return; }
+  if (free < minBytes) {
+    throw new Error(
+      `Disk penuh: ${dir} sisa ${(free / 1e9).toFixed(2)} GB (minimum ${(minBytes / 1e9).toFixed(1)} GB). Bersihkan disk lalu resume job.`
+    );
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Vite wajib sudah menyajikan input.mp4 sebelum browser dibuka (deteksi dini
+// server mati / file tak terjangkau, alih-alih 404 membingungkan di page).
+async function waitInputServed(server: ViteDevServer): Promise<void> {
+  const url = new URL('input.mp4', resolveUrl(server)).toString();
+  const deadline = Date.now() + 20_000;
+  let last = 'belum dicoba';
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { method: 'HEAD' });
+      if (res.ok) return;
+      last = `HTTP ${res.status}`;
+    } catch (error) {
+      last = String(error);
+    }
+    await sleep(500);
+  }
+  throw new Error(`input.mp4 tidak tersaji oleh vite (${last}) — cek disk penuh atau public dir`);
 }
 
 async function startServer(): Promise<ViteDevServer> {

@@ -133,13 +133,13 @@ function loadPersistedJobs() {
 }
 loadPersistedJobs();
 
-// Job yatim (mati saat server restart): tandai error + jalankan antrean.
+// Job yatim (mati saat server restart): tandai error. Antrean di-pump SETELAH
+// server listen (pumpQueue -> pushLog -> wsClients; const TDZ kalau dipanggil di sini).
 for (const j of dbListJobs(100)) {
   if (j.status === "running") {
     updateJob(j.id, { status: "error", error: "terinterupsi restart server", finishedAt: new Date().toISOString() });
   }
 }
-pumpQueue();
 
 function createJob(videoPath, config) {
   const id = `${Date.now()}-${randomUUID().slice(0, 6)}`;
@@ -1194,6 +1194,8 @@ server.listen(PORT, () => {
   console.log(`   http://localhost:${PORT}`);
   console.log(`   Jobs   : ${JOBS_DIR}`);
   console.log(`   DB     : ${DB_DIR}`);
+  // Lanjutkan antrean yang tertunda saat boot (aman: wsClients sudah terinit).
+  pumpQueue();
   // Warmup: format dok audio C++ (voice_ref path + reference_text).
   // Ref murni dari env (file pilihan user, gonta-ganti) — tanpa aturan detik/nama.
   const ttsServer = process.env.AUDIOCPP_SERVER || "http://127.0.0.1:8080";
