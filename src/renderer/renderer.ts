@@ -37,7 +37,8 @@ export async function renderShortVideo(
   bgmPath?: string,
   speedMin: number = 0.5,
   speedMax: number = 2,
-  colorGrade?: string
+  colorGrade?: string,
+  mirror?: boolean
 ) {
   const absManifest = path.resolve(manifestPath);
   const absOutput = path.resolve(outputMp4Path);
@@ -99,6 +100,10 @@ export async function renderShortVideo(
     filterComplex = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*${foregroundZoom}:ih*${foregroundZoom}[fg];[bg][fg]overlay=x:y:format=auto[outv]`.replace(/\s+/g, '');
     if (foregroundZoom !== baseZoom) console.log(`       Zoom (lonjong off): ${foregroundZoom}x`);
   }
+  if (mirror) {
+    filterComplex = filterComplex.replace('[0:v]split=2', '[0:v]hflip[mr];[mr]split=2');
+    console.log('       Mirror: hflip ON');
+  }
 
   // Temp directory for scene clips
   const tempDir = path.join(path.dirname(absOutput), '_temp_scenes');
@@ -154,7 +159,10 @@ export async function renderShortVideo(
     const overlayY = "(H-h)/2";
     if (cameraPlan && !useStretch) {
       const entry = cameraPlan.find(p => p.scene === scene.id);
-      const pos = entry?.position;
+      const rawPos = entry?.position;
+      const pos = mirror && rawPos === 'left' ? 'right'
+        : mirror && rawPos === 'right' ? 'left'
+          : rawPos;
       // `left`/`right` select the corresponding edge of the zoom crop.
       // The clamp is essential: shifting by the portrait canvas width would
       // expose empty space and make the foreground appear pushed off-screen.
@@ -170,12 +178,13 @@ export async function renderShortVideo(
       // available pan range. Subject at frame edge -> shift to that edge of
       // the zoom crop so it moves toward center; small offsets stay centered
       // (dead zone) so adjacent scenes never jitter left-right-left.
-      const dx = Math.min(100, Math.max(0, scene.subject_x_pct)) - 50;
+      const sx = mirror ? 100 - scene.subject_x_pct : scene.subject_x_pct;
+      const dx = Math.min(100, Math.max(0, sx)) - 50;
       const deadZonePct = 5;
       const shift = Math.abs(dx) < deadZonePct ? 0 : -Math.round((dx / 50) * cameraPanMax);
       if (shift !== 0) {
         overlayX = `(W-w)/2+(${shift})`;
-        console.log(`       ${scene.id}: subject_x=${scene.subject_x_pct}% shift=${shift} (max=${cameraPanMax})`);
+        console.log(`       ${scene.id}: subject_x=${sx.toFixed(1)}% shift=${shift} (max=${cameraPanMax})`);
       }
     }
 

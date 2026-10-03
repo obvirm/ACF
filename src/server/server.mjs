@@ -328,7 +328,7 @@ function pickRandomMusic(dir) {
   }
 }
 async function runPipeline(job, input) {
-  const { videoPath, model, stretch, hzoom, caption, lead, tail, outputMode = "one", parts = 0, bgm, prompt } = input;
+  const { videoPath, model, stretch, hzoom, mirror, caption, lead, tail, outputMode = "one", parts = 0, bgm, prompt } = input;
   const minutesPerPart = Number(input.minutesPerPart) > 0 ? Number(input.minutesPerPart) : (Number(process.env.MINUTES_PER_PART) > 0 ? Number(process.env.MINUTES_PER_PART) : 2);
   const defaultBgm = path.join(ROOT, "public", "bgm", "01. Novial Music - Into the Abyss.flac");
   // bgmDir = folder pustaka musik -> pick 1 file random per run.
@@ -356,7 +356,7 @@ async function runPipeline(job, input) {
   if (input.colorGrade === "random") pushLog(job, `[color] random pick -> ${colorGrade}`);
   if (prompt) pushLog(job, `Prompt : ${prompt.slice(0, 150)}${prompt.length > 150 ? "..." : ""}`);
   const modeLabel = outputMode === "manual" ? `Manual Split (${parts} part)` : outputMode === "auto" ? `Auto Split (target ${minutesPerPart} menit/part)` : "One Short";
-  pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Color: ${colorGrade} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
+  pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Color: ${colorGrade} | Mirror: ${mirror ? "ON" : "OFF"} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
 
   // 0. CAPTION-ONLY (bypass AI: tanpa analysis/TTS/render — anti rate limit) --
   // HARUS di sini (sebelum ANALYSIS) agar VLM tidak terpanggil sama sekali.
@@ -581,6 +581,7 @@ async function runPipeline(job, input) {
     if (stretch !== undefined && stretch !== null) renderArgs.push("--stretch", String(stretch));
     if (hzoom !== undefined && hzoom !== null) renderArgs.push("--hzoom", String(hzoom));
     if (colorGrade !== "normal") renderArgs.push("--color-grade", colorGrade);
+    if (mirror) renderArgs.push("--mirror");
     if (bgmPath) renderArgs.push("--bgm", bgmPath);
     if (input.speedMin !== undefined && input.speedMin !== null) renderArgs.push("--speed-min", String(input.speedMin));
     if (input.speedMax !== undefined && input.speedMax !== null) renderArgs.push("--speed-max", String(input.speedMax));
@@ -763,6 +764,7 @@ const server = http.createServer(async (req, res) => {
       const zoom = hzoom !== undefined && hzoom > 0 ? hzoom : baseZoom;
       filter = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*${zoom}:ih*${zoom}[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto[outv]`.replace(/\s+/g, "");
     }
+    if (input.mirror === true) filter = filter.replace('[0:v]split=2', '[0:v]hflip[mr];[mr]split=2');
     try {
       const durOut = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", videoPath], { encoding: "utf8" });
       const dur = Number(durOut.trim()) || 10;
@@ -826,6 +828,7 @@ const server = http.createServer(async (req, res) => {
       captionOnly: input.captionOnly === true,
       resumeJob: typeof input.resumeJob === "string" && input.resumeJob.trim() ? path.basename(input.resumeJob.trim()) : undefined,
       renderOnly: input.renderOnly === true,
+      mirror: input.mirror === true,
     };
     const job = createJob(videoPath, sanitized);
     await fsp.mkdir(job.dir, { recursive: true });

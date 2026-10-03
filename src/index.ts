@@ -52,6 +52,9 @@ async function main() {
       },
       'color-grade': {
         type: 'string' // Preset grading: normal|cinematic|warm|cool|vivid|vintage|dramatic|random
+      },
+      'mirror': {
+        type: 'boolean' // Flip horizontal sumber (anti Content ID visual); caption/overlay tetap normal
       }
     },
     allowPositionals: true
@@ -128,7 +131,8 @@ async function main() {
       values.bgm ? path.resolve(values.bgm) : undefined,
       numOrUndef(values['speed-min']),
       numOrUndef(values['speed-max']),
-      values['color-grade']
+      values['color-grade'],
+      values.mirror === true
     );
     return;
   }
@@ -172,7 +176,8 @@ async function main() {
       values.bgm ? path.resolve(values.bgm) : undefined,
       numOrUndef(values['speed-min']),
       numOrUndef(values['speed-max']),
-      values['color-grade']
+      values['color-grade'],
+      values.mirror === true
     );
     console.log(`- Final Video:  ${outputMp4}`);
     console.log(`- Narration:    ${path.join(outputDir, 'narasi.txt')}`);
