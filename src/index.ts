@@ -55,6 +55,9 @@ async function main() {
       },
       'mirror': {
         type: 'boolean' // Flip horizontal sumber (anti Content ID visual); caption/overlay tetap normal
+      },
+      'grain': {
+        type: 'boolean' // Noise film grain di akhir chain (memecah fingerprint CGI halus)
       }
     },
     allowPositionals: true
@@ -132,7 +135,8 @@ async function main() {
       numOrUndef(values['speed-min']),
       numOrUndef(values['speed-max']),
       values['color-grade'],
-      values.mirror === true
+      values.mirror === true,
+      values.grain === true
     );
     return;
   }
@@ -177,7 +181,8 @@ async function main() {
       numOrUndef(values['speed-min']),
       numOrUndef(values['speed-max']),
       values['color-grade'],
-      values.mirror === true
+      values.mirror === true,
+      values.grain === true
     );
     console.log(`- Final Video:  ${outputMp4}`);
     console.log(`- Narration:    ${path.join(outputDir, 'narasi.txt')}`);

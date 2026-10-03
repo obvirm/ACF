@@ -38,7 +38,8 @@ export async function renderShortVideo(
   speedMin: number = 0.5,
   speedMax: number = 2,
   colorGrade?: string,
-  mirror?: boolean
+  mirror?: boolean,
+  grain?: boolean
 ) {
   const absManifest = path.resolve(manifestPath);
   const absOutput = path.resolve(outputMp4Path);
@@ -104,6 +105,7 @@ export async function renderShortVideo(
     filterComplex = filterComplex.replace('[0:v]split=2', '[0:v]hflip[mr];[mr]split=2');
     console.log('       Mirror: hflip ON');
   }
+  if (grain) console.log('       Grain: noise ON (alls=7)');
 
   // Temp directory for scene clips
   const tempDir = path.join(path.dirname(absOutput), '_temp_scenes');
@@ -194,6 +196,7 @@ export async function renderShortVideo(
     let sceneFilterComplex = (suffix ? filterComplex.replace('[outv]', `${suffix}[outv]`) : filterComplex)
       .replace('overlay=x:y', `overlay=${overlayX}:${overlayY}`);
     if (gradeFilter) sceneFilterComplex = sceneFilterComplex.replace('[outv]', `,${gradeFilter}[outv]`);
+    if (grain) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',noise=alls=7:allf=t+u[outv]');
     if (Math.abs(speed - 1) > 0.001) console.log(`       ${scene.id}: tempo ${speed.toFixed(2)}x (visual ${take.toFixed(1)}s -> narasi ${duration.toFixed(1)}s)`);
     const clipPath = path.join(tempDir, `scene_${String(i).padStart(4, '0')}.mp4`);
 
