@@ -31,6 +31,7 @@ export function NewJob() {
   const [grain, setGrain] = useState(false);
   const [sceneZoom, setSceneZoom] = useState(false);
   const [rotate, setRotate] = useState(false);
+  const [lensWarp, setLensWarp] = useState(false);
   const [speedMin, setSpeedMin] = useState<number | undefined>(0.5);
   const [speedMax, setSpeedMax] = useState<number | undefined>(2);
   const parseNum = (v: string): number | undefined => {
@@ -47,7 +48,7 @@ export function NewJob() {
     setPreviewLoading(true);
     setPreviewError(null);
     try {
-      const r = await previewFrame({ videoPath, stretch, hzoom, mirror, grain, sceneZoom, rotate, atSec: previewAtSec });
+      const r = await previewFrame({ videoPath, stretch, hzoom, mirror, grain, sceneZoom, rotate, lensWarp, atSec: previewAtSec });
       setPreviewImg(r.image);
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : String(e));
@@ -236,6 +237,7 @@ export function NewJob() {
         grain: grain || undefined,
         sceneZoom: sceneZoom || undefined,
         rotate: rotate || undefined,
+        lensWarp: lensWarp || undefined,
         speedMin: speedMin !== undefined && !Number.isNaN(speedMin) ? speedMin : undefined,
         speedMax: speedMax !== undefined && !Number.isNaN(speedMax) ? speedMax : undefined,
         caption,
@@ -489,6 +491,16 @@ export function NewJob() {
               className="h-4 w-4 accent-[#B6FF3B]"
             />
             Rotate 0,5° (anti-fingerprint)
+          </label>
+
+          <label className="flex items-center gap-2 text-xs font-bold tracking-wide text-[#a1a1aa]">
+            <input
+              type="checkbox"
+              checked={lensWarp}
+              onChange={(e) => setLensWarp(e.target.checked)}
+              className="h-4 w-4 accent-[#B6FF3B]"
+            />
+            Lens Distortion (warp tipis)
           </label>
 
           <div className="space-y-1.5">

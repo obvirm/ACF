@@ -41,7 +41,8 @@ export async function renderShortVideo(
   mirror?: boolean,
   grain?: boolean,
   sceneZoom?: boolean,
-  rotate?: boolean
+  rotate?: boolean,
+  lensWarp?: boolean
 ) {
   const absManifest = path.resolve(manifestPath);
   const absOutput = path.resolve(outputMp4Path);
@@ -112,6 +113,7 @@ export async function renderShortVideo(
   if (grain) console.log('       Grain: noise ON (alls=7)');
   if (sceneZoom) console.log('       SceneZoom: random per scene (1.0-1.3x)');
   if (rotate) console.log('       Rotate: 0.5deg + overscan ON');
+  if (lensWarp) console.log('       LensWarp: barrel k1=-0.03 ON');
 
   // Temp directory for scene clips
   const tempDir = path.join(path.dirname(absOutput), '_temp_scenes');
@@ -211,6 +213,7 @@ export async function renderShortVideo(
       .replace('overlay=x:y', `overlay=${overlayX}:${overlayY}`);
     if (gradeFilter) sceneFilterComplex = sceneFilterComplex.replace('[outv]', `,${gradeFilter}[outv]`);
     if (rotate) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',scale=iw*1.04:ih*1.04,rotate=0.5*PI/180:ow=1080:oh=1920[outv]');
+    if (lensWarp) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',lenscorrection=cx=0.5:cy=0.5:k1=-0.03:k2=0[outv]');
     if (grain) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',noise=alls=7:allf=t+u[outv]');
     if (Math.abs(speed - 1) > 0.001) console.log(`       ${scene.id}: tempo ${speed.toFixed(2)}x (visual ${take.toFixed(1)}s -> narasi ${duration.toFixed(1)}s)`);
     const clipPath = path.join(tempDir, `scene_${String(i).padStart(4, '0')}.mp4`);

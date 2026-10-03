@@ -328,7 +328,7 @@ function pickRandomMusic(dir) {
   }
 }
 async function runPipeline(job, input) {
-  const { videoPath, model, stretch, hzoom, mirror, grain, sceneZoom, rotate, caption, lead, tail, outputMode = "one", parts = 0, bgm, prompt } = input;
+  const { videoPath, model, stretch, hzoom, mirror, grain, sceneZoom, rotate, lensWarp, caption, lead, tail, outputMode = "one", parts = 0, bgm, prompt } = input;
   const minutesPerPart = Number(input.minutesPerPart) > 0 ? Number(input.minutesPerPart) : (Number(process.env.MINUTES_PER_PART) > 0 ? Number(process.env.MINUTES_PER_PART) : 2);
   const defaultBgm = path.join(ROOT, "public", "bgm", "01. Novial Music - Into the Abyss.flac");
   // bgmDir = folder pustaka musik -> pick 1 file random per run.
@@ -356,7 +356,7 @@ async function runPipeline(job, input) {
   if (input.colorGrade === "random") pushLog(job, `[color] random pick -> ${colorGrade}`);
   if (prompt) pushLog(job, `Prompt : ${prompt.slice(0, 150)}${prompt.length > 150 ? "..." : ""}`);
   const modeLabel = outputMode === "manual" ? `Manual Split (${parts} part)` : outputMode === "auto" ? `Auto Split (target ${minutesPerPart} menit/part)` : "One Short";
-  pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Color: ${colorGrade} | Mirror: ${mirror ? "ON" : "OFF"} | Grain: ${grain ? "ON" : "OFF"} | SceneZoom: ${sceneZoom ? "ON" : "OFF"} | Rotate: ${rotate ? "ON" : "OFF"} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
+  pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Color: ${colorGrade} | Mirror: ${mirror ? "ON" : "OFF"} | Grain: ${grain ? "ON" : "OFF"} | SceneZoom: ${sceneZoom ? "ON" : "OFF"} | Rotate: ${rotate ? "ON" : "OFF"} | LensWarp: ${lensWarp ? "ON" : "OFF"} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
 
   // 0. CAPTION-ONLY (bypass AI: tanpa analysis/TTS/render — anti rate limit) --
   // HARUS di sini (sebelum ANALYSIS) agar VLM tidak terpanggil sama sekali.
@@ -585,6 +585,7 @@ async function runPipeline(job, input) {
     if (grain) renderArgs.push("--grain");
     if (sceneZoom) renderArgs.push("--scene-zoom");
     if (rotate) renderArgs.push("--rotate");
+    if (lensWarp) renderArgs.push("--lens-warp");
     if (bgmPath) renderArgs.push("--bgm", bgmPath);
     if (input.speedMin !== undefined && input.speedMin !== null) renderArgs.push("--speed-min", String(input.speedMin));
     if (input.speedMax !== undefined && input.speedMax !== null) renderArgs.push("--speed-max", String(input.speedMax));
@@ -770,6 +771,7 @@ const server = http.createServer(async (req, res) => {
     }
     if (input.mirror === true) filter = filter.replace('[0:v]split=2', '[0:v]hflip[mr];[mr]split=2');
     if (input.rotate === true) filter = filter.replace('[outv]', ',scale=iw*1.04:ih*1.04,rotate=0.5*PI/180:ow=1080:oh=1920[outv]');
+    if (input.lensWarp === true) filter = filter.replace('[outv]', ',lenscorrection=cx=0.5:cy=0.5:k1=-0.03:k2=0[outv]');
     if (input.grain === true) filter = filter.replace('[outv]', ',noise=alls=7:allf=t+u[outv]');
     try {
       const durOut = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", videoPath], { encoding: "utf8" });
@@ -838,6 +840,7 @@ const server = http.createServer(async (req, res) => {
       grain: input.grain === true,
       sceneZoom: input.sceneZoom === true,
       rotate: input.rotate === true,
+      lensWarp: input.lensWarp === true,
     };
     const job = createJob(videoPath, sanitized);
     await fsp.mkdir(job.dir, { recursive: true });

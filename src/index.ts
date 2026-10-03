@@ -64,6 +64,9 @@ async function main() {
       },
       'rotate': {
         type: 'boolean' // Rotasi 0.5 derajat + overscan 4% (geometri anti-fingerprint)
+      },
+      'lens-warp': {
+        type: 'boolean' // Distorsi lensa barrel tipis k1=-0.03 (geometri non-linear anti-fingerprint)
       }
     },
     allowPositionals: true
@@ -144,7 +147,8 @@ async function main() {
       values.mirror === true,
       values.grain === true,
       values['scene-zoom'] === true,
-      values.rotate === true
+      values.rotate === true,
+      values['lens-warp'] === true
     );
     return;
   }
@@ -192,7 +196,8 @@ async function main() {
       values.mirror === true,
       values.grain === true,
       values['scene-zoom'] === true,
-      values.rotate === true
+      values.rotate === true,
+      values['lens-warp'] === true
     );
     console.log(`- Final Video:  ${outputMp4}`);
     console.log(`- Narration:    ${path.join(outputDir, 'narasi.txt')}`);
