@@ -115,6 +115,41 @@ Artifact per job di `data/output/jobs/<jobId>/`:
 Diatur di `src/prompts/narration_prompt.md` (boleh diubah): recap baku,
 deskriptif, kronologis, tanpa slang, hook premis langsung di chunk pertama.
 
+## Anti-Claim Content ID (resep terbukti — catatan untuk agent berikutnya)
+
+Tes berulang pada video SpongeBob 4 (klaim "Hak cipta - Visual" Paramount
+Global — **audio tidak pernah kena, hanya visual**; klaim menimpa segmen
+CGI yang gerakannya halus). Hasil:
+
+| Stack diuji | Hasil klaim |
+|---|---|
+| cinematic saja | kena |
+| cinematic + stretch 0.7 | kena |
+| cinematic + hzoom 2 | kena (berkurang) |
+| cinematic + hzoom 2 + mirror | kena |
+| **cinematic + hzoom 2 + mirror + grain** | **AMAN** (tester `xdN18-1-PAQ`) |
+
+Jadi **grain = faktor penentu**. Kenapa menang tapi video tetap jernih:
+fingerprint Content ID = hash statistik pola tekstur/gerakan per frame —
+noise temporal (`noise=alls=7:allf=t+u`, noise baru tiap frame, ±3% amplitudo)
+mengacak statistik itu sehingga hash tak cocok lagi; mata manusia justru
+merata-ratakan noise temporal, dan filter dipasang **setelah grading,
+sebelum overlay/caption** → video halus, teks tetap tajam.
+
+Keempat fitur anti-fingerprint sudah ada di `POST /api/run`
+(preview `/api/preview-frame` juga menerima param yang sama):
+
+- `mirror` — flip horizontal sumber (arah pan kamera ikut terbalik)
+- `grain` — film noise di akhir chain
+- `sceneZoom` — zoom acak 1.0–1.3× per scene (random picker)
+- `rotate` — rotasi 0,5° + overscan 4%, crop balik 1080×1920
+
+Status & pedoman (bukan aturan permanen): `sceneZoom` & `rotate` **belum
+dites** terhadap klaim — default n8n (workflow Antrian, node `Run Job M2S`,
+`Run Job M2S (Upload)`, `Run Resume M2S`) memakai stack terbukti
+`mirror=true, grain=true, hzoom=2, colorGrade=cinematic`. Setelah tes,
+boleh ditambahkan ke default.
+
 ## Kredit
 
 - Caption engine + template oleh **tscaps** — https://github.com/francozanardi/tscaps
