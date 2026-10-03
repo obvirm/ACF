@@ -79,7 +79,11 @@ export async function renderShortVideo(
   // 1080x1920 (karakter memanjang maksimal). Tanpa stretch = zoom 1.15 crop
   // tengah (perilaku commit, "aman"). Camera plan menggeser posisi overlay.
   const useStretch = typeof stretchRatio === 'number' && stretchRatio >= 0;
-  const foregroundZoom = 1.15;
+  const baseZoom = 1.15;
+  const stretchZoom = typeof hZoomRatio === 'number' && hZoomRatio > 1 ? hZoomRatio : 1;
+  const foregroundZoom = useStretch
+    ? baseZoom
+    : typeof hZoomRatio === 'number' && hZoomRatio > 0 ? hZoomRatio : baseZoom;
   // Pan must stay inside the horizontal crop created by the foreground zoom.
   // At 1.15x, the 1080px foreground becomes 1242px wide, so only 81px
   // of movement is available on either side of the centered position.
@@ -87,13 +91,13 @@ export async function renderShortVideo(
   const cameraPanMax = Math.max(0, Math.floor((foregroundWidth - W) / 2));
   let filterComplex: string;
   if (useStretch) {
-    const hZoom = typeof hZoomRatio === 'number' && hZoomRatio > 1 ? hZoomRatio : 1;
     const fgH = Math.round(608 + (1920 - 608) * Math.min(1, Math.max(0, stretchRatio)));
-    const fgW = Math.round(W * hZoom);
+    const fgW = Math.round(W * stretchZoom);
     filterComplex = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${fgW}:${fgH},crop=${W}:${fgH}[fg];[bg][fg]overlay=0:${Math.round((H - fgH) / 2)}:format=auto[outv]`.replace(/\s+/g, '');
-    console.log(`       Stretch (lonjong) mode: ratio=${stretchRatio} hZoom=${hZoom} -> fg ${fgW}x${fgH}`);
+    console.log(`       Stretch (lonjong) mode: ratio=${stretchRatio} hZoom=${stretchZoom} -> fg ${fgW}x${fgH}`);
   } else {
     filterComplex = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*${foregroundZoom}:ih*${foregroundZoom}[fg];[bg][fg]overlay=x:y:format=auto[outv]`.replace(/\s+/g, '');
+    if (foregroundZoom !== baseZoom) console.log(`       Zoom (lonjong off): ${foregroundZoom}x`);
   }
 
   // Temp directory for scene clips

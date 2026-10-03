@@ -401,6 +401,7 @@ async function runPipeline(job, input) {
   // 1. ANALYSIS -------------------------------------------------------------
 
   // 1. ANALYSIS -------------------------------------------------------------
+  if (input.renderOnly && !input.resumeJob) throw new Error("renderOnly wajib menyertakan resumeJob");
   pushStatus(job, "running", "analysis");
   // RESUME (bypass AI): pakai manifest job lain, analysis dilewati total.
   let resumeManifest = null;
@@ -451,7 +452,17 @@ async function runPipeline(job, input) {
   // ke budget karakter ±target detik. Visual scene asli dipertahankan; render
   // nanti memotong tiap klip ke durasi narasi barunya (narasi = master timeline).
   let effectiveManifest = manifestPath;
+  const resumeDir = input.resumeJob ? path.join(JOBS_DIR, path.basename(String(input.resumeJob))) : null;
   if (targetSeconds > 0) {
+    const reuseCondensed = input.renderOnly && resumeDir && fs.existsSync(path.join(resumeDir, "manifest_condensed.json"));
+    if (reuseCondensed) {
+      const srcCond = path.join(resumeDir, "manifest_condensed.json");
+      effectiveManifest = path.join(job.dir, "manifest_condensed.json");
+      await fsp.copyFile(srcCond, effectiveManifest);
+      const srcNarasi = path.join(resumeDir, "narasi.txt");
+      if (fs.existsSync(srcNarasi)) await fsp.copyFile(srcNarasi, path.join(job.dir, "narasi.txt"));
+      pushLog(job, "[renderOnly] manifest_condensed + narasi.txt dari resume, condense dilewati");
+    } else {
     pushStatus(job, "running", "condense");
     const originalSceneCount = (JSON.parse(await fsp.readFile(manifestPath, "utf8"))).scenes.length;
     const condensedPath = path.join(job.dir, "manifest_condensed.json");
@@ -471,6 +482,7 @@ async function runPipeline(job, input) {
       "utf8",
     );
     pushLog(job, `[condense] ${condensed.scenes.length}/${originalSceneCount} scene dipertahankan, target ±${targetSeconds}s -> manifest_condensed.json`);
+    }
   }
 
   // 2. TTS SEKALI — HTTP server (audiocpp_server, GPU, Higgs Audio v3) ----
@@ -478,6 +490,17 @@ async function runPipeline(job, input) {
   pushStatus(job, "running", "tts");
   const fullNarrationWav = path.join(job.dir, "narration_audiocpp_natural.wav");
   const fullNarrationJson = path.join(job.dir, "narration_audiocpp_natural.json");
+  const ttsLanguage = input.language || "Indonesian";
+  if (input.renderOnly && resumeDir) {
+    const srcWav = path.join(resumeDir, "narration_audiocpp_natural.wav");
+    const srcJson = path.join(resumeDir, "narration_audiocpp_natural.json");
+    if (!fs.existsSync(srcWav) || !fs.existsSync(srcJson)) {
+      throw new Error("renderOnly: narasi lama (wav/json) tidak ada di resumeJob");
+    }
+    await fsp.copyFile(srcWav, fullNarrationWav);
+    await fsp.copyFile(srcJson, fullNarrationJson);
+    pushLog(job, "[renderOnly] narasi lama dipakai ulang, TTS dilewati");
+  } else {
   const httpTtsArgs = [
     CFG.httpTtsScript,
     "--manifest", effectiveManifest,
@@ -487,7 +510,6 @@ async function runPipeline(job, input) {
   if (lead !== undefined && lead !== null) httpTtsArgs.push("--lead", String(lead));
   if (tail !== undefined && tail !== null) httpTtsArgs.push("--tail", String(tail));
   // Language support
-  const ttsLanguage = input.language || "Indonesian";
   httpTtsArgs.push("--language", ttsLanguage);
   // Voice cloning support
   const voiceRef = input.voiceRef || process.env.AUDIOCPP_VOICE_REF || path.join(ROOT, "src", "patrick_ref_voice.wav");
@@ -498,6 +520,7 @@ async function runPipeline(job, input) {
   pushLog(job, `[tts] model -> ${ttsModel}`);
   await run(job, `TTS HTTP (${ttsModel})`, process.execPath, [...httpTtsArgs]);
   pushLog(job, `[tts] selesai -> ${rel(fullNarrationWav)}`);
+  }
 
   // 2.5 SPLIT post-TTS (opsional) ------------------------------------------------
   const partDirs = [];
@@ -728,7 +751,7 @@ const server = http.createServer(async (req, res) => {
     };
     const stretch = num(input.stretch);
     const hzoom = num(input.hzoom);
-    const W = 1080, H = 1920, foregroundZoom = 1.15;
+    const W = 1080, H = 1920, baseZoom = 1.15;
     const useStretch = stretch !== undefined && stretch >= 0;
     let filter;
     if (useStretch) {
@@ -737,7 +760,8 @@ const server = http.createServer(async (req, res) => {
       const fgW = Math.round(W * hz);
       filter = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${fgW}:${fgH},crop=${W}:${fgH}[fg];[bg][fg]overlay=0:${Math.round((H - fgH) / 2)}:format=auto[outv]`.replace(/\s+/g, "");
     } else {
-      filter = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*${foregroundZoom}:ih*${foregroundZoom}[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto[outv]`.replace(/\s+/g, "");
+      const zoom = hzoom !== undefined && hzoom > 0 ? hzoom : baseZoom;
+      filter = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*${zoom}:ih*${zoom}[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2:format=auto[outv]`.replace(/\s+/g, "");
     }
     try {
       const durOut = execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", videoPath], { encoding: "utf8" });
@@ -801,6 +825,7 @@ const server = http.createServer(async (req, res) => {
       language: (input.language || process.env.LANGUAGE || "Indonesian").toString(),
       captionOnly: input.captionOnly === true,
       resumeJob: typeof input.resumeJob === "string" && input.resumeJob.trim() ? path.basename(input.resumeJob.trim()) : undefined,
+      renderOnly: input.renderOnly === true,
     };
     const job = createJob(videoPath, sanitized);
     await fsp.mkdir(job.dir, { recursive: true });
