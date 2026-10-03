@@ -120,41 +120,13 @@ Balas JSON SAJA: {"scenes":[{"id":"...","start_sec":0,"end_sec":0,"description":
   const out = (parsed.scenes || []).filter((s: any) => String(s.narration_text || "").trim().length > 0);
   if (!out.length) throw new Error("LLM menghasilkan 0 scene");
 
-  // HARD CAP — kalau AI ngebas budget, pangkas narration scene terpanjang
-  // (kalimat dulu, lalu kata) sampai total muat. Scene TIDAK dibuang agar
-  // kronologi cerita utuh; scene yang kehabisan narasi baru dibuang.
-  const charsOf = (arr: any[]) => arr.reduce((a: number, s: any) => a + String(s.narration_text || "").length, 0);
-  const totalBefore = charsOf(out);
-  let guard = 2000;
-  while (charsOf(out) > budgetChars && guard-- > 0) {
-    const t = out.reduce((a: any, b: any) =>
-      String(b.narration_text || "").length > String(a.narration_text || "").length ? b : a);
-    const text = String(t.narration_text || "");
-    if (!text) break;
-    const parts = text.split(/(?<=[.!?…])\s+/);
-    if (parts.length > 1) {
-      parts.pop();
-      t.narration_text = parts.join(" ").trim();
-    } else {
-      const words = text.split(/\s+/);
-      words.pop();
-      t.narration_text = words.join(" ").trim();
-    }
-  }
-  const outFinal = out.filter((s: any) => String(s.narration_text || "").trim().length > 0);
-  if (!outFinal.length) throw new Error("condense: semua narasi terpotong habis oleh budget");
-  const totalAfter = charsOf(outFinal);
-  if (totalAfter < totalBefore) {
-    console.log(`[condense] budget ketat: ${totalBefore} -> ${totalAfter}/${budgetChars} chars (dipangkas dari scene terpanjang)`);
-  }
-
   await fs.mkdir(path.dirname(path.resolve(condensedPath)), { recursive: true });
   await fs.writeFile(
     path.resolve(condensedPath),
-    JSON.stringify({ videoFile: manifest.videoFile, scenes: outFinal }, null, 2)
+    JSON.stringify({ videoFile: manifest.videoFile, scenes: out }, null, 2)
   );
-  const totalChars = charsOf(outFinal);
-  console.log(`[condense] ${outFinal.length}/${scenes.length} scene, ${totalChars}/${budgetChars} chars -> ${condensedPath}`);
+  const totalChars = out.map((s: any) => String(s.narration_text).length).reduce((a: number, b: number) => a + b, 0);
+  console.log(`[condense] ${out.length}/${scenes.length} scene, ${totalChars}/${budgetChars} chars -> ${condensedPath}`);
 }
 
 // Hanya jalan sebagai CLI (boleh diimpor untuk unit test parseLlmJson).
