@@ -56,6 +56,7 @@ export function NewJob() {
   const [lead, setLead] = useState(5);
   const [tail, setTail] = useState(5);
   const [overlayMode, setOverlayMode] = useState<"none" | "image" | "css">("none");
+  const [colorGrade, setColorGrade] = useState<"normal" | "cinematic" | "warm" | "cool" | "vivid" | "vintage" | "dramatic" | "random">("random");
   const [overlayImage, setOverlayImage] = useState<string | null>(null);
   const [overlayImageName, setOverlayImageName] = useState<string | null>(null);
   const [overlayUploading, setOverlayUploading] = useState(false);
@@ -241,6 +242,7 @@ export function NewJob() {
         overlayImage: overlayMode === "image" ? overlayImage || undefined : undefined,
         overlayHtml: overlayMode === "css" ? overlayHtml : undefined,
         overlayCss: overlayMode === "css" ? overlayCss : undefined,
+        colorGrade,
         voiceRef: voiceRef || undefined,
         language: language || undefined,
         bgm: bgmPath || undefined,
@@ -357,6 +359,24 @@ export function NewJob() {
               <option value="one">One Short — single file</option>
               <option value="auto">Auto Split (target menit/part)</option>
               <option value="manual">Manual Split (N part)</option>
+            </select>
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-xs font-bold tracking-wide text-[#a1a1aa]">Color Grading</span>
+            <select
+              value={colorGrade}
+              onChange={(e) => setColorGrade(e.target.value as typeof colorGrade)}
+              className="w-full rounded-xl border border-[#27272A] bg-[#000000] px-3 py-2.5 text-sm text-white focus:border-[#B6FF3B]/40 focus:outline-none"
+            >
+              <option value="random">Random (server pilih)</option>
+              <option value="normal">Normal (tanpa grading)</option>
+              <option value="cinematic">Cinematic (teal-orange)</option>
+              <option value="warm">Warm (hangat)</option>
+              <option value="cool">Cool (dingin)</option>
+              <option value="vivid">Vivid (kontras cerah)</option>
+              <option value="vintage">Vintage (retro pudar)</option>
+              <option value="dramatic">Dramatic (kontras tinggi)</option>
             </select>
           </label>
 

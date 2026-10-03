@@ -49,6 +49,9 @@ async function main() {
       },
       'speed-max': {
         type: 'string' // Batas cepat tempo mengikuti narasi, default 2 (potong di atasnya)
+      },
+      'color-grade': {
+        type: 'string' // Preset grading: normal|cinematic|warm|cool|vivid|vintage|dramatic|random
       }
     },
     allowPositionals: true
@@ -124,7 +127,8 @@ async function main() {
       values.hzoom !== undefined ? Number(values.hzoom) : undefined,
       values.bgm ? path.resolve(values.bgm) : undefined,
       numOrUndef(values['speed-min']),
-      numOrUndef(values['speed-max'])
+      numOrUndef(values['speed-max']),
+      values['color-grade']
     );
     return;
   }
@@ -167,7 +171,8 @@ async function main() {
       values.hzoom !== undefined ? Number(values.hzoom) : undefined,
       values.bgm ? path.resolve(values.bgm) : undefined,
       numOrUndef(values['speed-min']),
-      numOrUndef(values['speed-max'])
+      numOrUndef(values['speed-max']),
+      values['color-grade']
     );
     console.log(`- Final Video:  ${outputMp4}`);
     console.log(`- Narration:    ${path.join(outputDir, 'narasi.txt')}`);

@@ -313,6 +313,7 @@ ${css}
 // Pipeline
 // ---------------------------------------------------------------------------
 const BGM_EXTS = new Set([".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac"]);
+const GRADE_PRESETS = ["cinematic", "warm", "cool", "vivid", "vintage", "dramatic"];
 
 /** Ambil 1 file musik random dari folder (non-rekursif). null bila kosong/tidak ada. */
 function pickRandomMusic(dir) {
@@ -349,9 +350,13 @@ async function runPipeline(job, input) {
     : typeof input.chunk === "boolean" ? (input.chunk ? 40 : 0) : Number(input.chunk);
   pushLog(job, `Video  : ${videoPath}`);
   pushLog(job, `Model  : ${model}`);
+  let colorGrade = input.colorGrade === "random"
+    ? GRADE_PRESETS[Math.floor(Math.random() * GRADE_PRESETS.length)]
+    : (GRADE_PRESETS.includes(input.colorGrade) ? input.colorGrade : "normal");
+  if (input.colorGrade === "random") pushLog(job, `[color] random pick -> ${colorGrade}`);
   if (prompt) pushLog(job, `Prompt : ${prompt.slice(0, 150)}${prompt.length > 150 ? "..." : ""}`);
   const modeLabel = outputMode === "manual" ? `Manual Split (${parts} part)` : outputMode === "auto" ? `Auto Split (target ${minutesPerPart} menit/part)` : "One Short";
-  pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
+  pushLog(job, `Chunk  : ${chunkEnabled ? `${chunkDuration}s (chunk)` : "FULL (tanpa chunk)"} | Output: ${modeLabel}${recapLabel} | Stretch: ${stretch ?? "-"} | hZoom: ${hzoom ?? "-"} | Caption: ${caption ? "ON" : "OFF"} | BGM: ${bgmPath ? path.basename(bgmPath) : "OFF"} | Color: ${colorGrade} | Jeda TTS: lead ${lead ?? 5}s + tail ${tail ?? 5}s`);
 
   // 0. CAPTION-ONLY (bypass AI: tanpa analysis/TTS/render — anti rate limit) --
   // HARUS di sini (sebelum ANALYSIS) agar VLM tidak terpanggil sama sekali.
@@ -552,6 +557,7 @@ async function runPipeline(job, input) {
     ];
     if (stretch !== undefined && stretch !== null) renderArgs.push("--stretch", String(stretch));
     if (hzoom !== undefined && hzoom !== null) renderArgs.push("--hzoom", String(hzoom));
+    if (colorGrade !== "normal") renderArgs.push("--color-grade", colorGrade);
     if (bgmPath) renderArgs.push("--bgm", bgmPath);
     if (input.speedMin !== undefined && input.speedMin !== null) renderArgs.push("--speed-min", String(input.speedMin));
     if (input.speedMax !== undefined && input.speedMax !== null) renderArgs.push("--speed-max", String(input.speedMax));
@@ -789,6 +795,7 @@ const server = http.createServer(async (req, res) => {
       overlayImage: input.overlayImage ? String(input.overlayImage) : undefined,
       overlayHtml: input.overlayHtml ? String(input.overlayHtml).slice(0, 200000) : undefined,
       overlayCss: input.overlayCss ? String(input.overlayCss).slice(0, 200000) : undefined,
+      colorGrade: ["normal", "cinematic", "warm", "cool", "vivid", "vintage", "dramatic", "random"].includes(input.colorGrade) ? input.colorGrade : "normal",
        voiceRef: input.voiceRef ? String(input.voiceRef) : undefined,
       ttsModel: typeof input.ttsModel === "string" && input.ttsModel.trim() ? input.ttsModel.trim() : undefined,
       language: (input.language || process.env.LANGUAGE || "Indonesian").toString(),

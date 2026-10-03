@@ -109,6 +109,7 @@ export interface RunPayload {
   overlayImage?: string;
   overlayHtml?: string;
   overlayCss?: string;
+  colorGrade?: "normal" | "cinematic" | "warm" | "cool" | "vivid" | "vintage" | "dramatic" | "random";
   voiceRef?: string; // base64 audio WAV for voice cloning
   ttsModel?: string; // TTS model id (default: env TTS_MODEL atau higgs-tts-q4)
   language?: string; // TTS/Whisper language (default: "Indonesian")

@@ -5,6 +5,17 @@ import fs from 'fs/promises';
 
 const execAsync = promisify(exec);
 
+// Preset color grading: transformasi warna piksel asli (eq + colorbalance),
+// bukan overlay. Dipakai untuk bedakan visual dari sumber + selera sinematik.
+const COLOR_GRADE_FILTERS: Record<string, string> = {
+  cinematic: 'eq=contrast=1.10:saturation=0.95:brightness=-0.02,colorbalance=rs=-0.06:bs=0.06:rm=-0.04:bm=0.06:rh=0.05:bh=-0.05',
+  warm: 'eq=contrast=1.05:saturation=1.10,colorbalance=rm=0.06:gm=0.02:bm=-0.06:rh=0.07:bh=-0.07',
+  cool: 'eq=contrast=1.05:saturation=1.05,colorbalance=rm=-0.06:bm=0.07:rh=-0.06:bh=0.07',
+  vivid: 'eq=contrast=1.15:saturation=1.30:brightness=0.02',
+  vintage: 'eq=contrast=0.94:saturation=0.75:brightness=0.05:gamma=1.05,colorbalance=rs=0.05:bs=0.04:gh=0.03:bh=-0.05',
+  dramatic: 'eq=contrast=1.28:saturation=0.88:brightness=-0.05:gamma=0.95',
+};
+
 /**
  * Runs FFmpeg to render the final MP4.
  * Processes each scene individually with zoom+blur filter, then concatenates.
@@ -25,7 +36,8 @@ export async function renderShortVideo(
   hZoomRatio?: number,
   bgmPath?: string,
   speedMin: number = 0.5,
-  speedMax: number = 2
+  speedMax: number = 2,
+  colorGrade?: string
 ) {
   const absManifest = path.resolve(manifestPath);
   const absOutput = path.resolve(outputMp4Path);
@@ -44,6 +56,8 @@ export async function renderShortVideo(
   console.log(`       Video source: ${actualVideoPath}`);
   if (actualNarrationPath) console.log(`       Narration: ${actualNarrationPath}`);
   if (actualBgmPath) console.log(`       BGM: ${actualBgmPath}`);
+  const gradeFilter = colorGrade && colorGrade !== 'normal' ? COLOR_GRADE_FILTERS[colorGrade] : undefined;
+  if (gradeFilter) console.log(`       Color grading: ${colorGrade}`);
   if (sceneDurations) console.log(`       Per-scene narration durations: ${sceneDurationsPath}`);
   if (cameraPlan) console.log(`       Camera plan (director): ${cameraPlanPath} (${cameraPlan.length} scene)`);
 
@@ -164,8 +178,9 @@ export async function renderShortVideo(
     let suffix = '';
     if (Math.abs(speed - 1) > 0.001) suffix += `,setpts=PTS/${speed.toFixed(4)}`;
     if (extraVisualDuration > 0.01) suffix += `,tpad=stop_mode=clone:stop_duration=${extraVisualDuration.toFixed(3)}`;
-    const sceneFilterComplex = (suffix ? filterComplex.replace('[outv]', `${suffix}[outv]`) : filterComplex)
+    let sceneFilterComplex = (suffix ? filterComplex.replace('[outv]', `${suffix}[outv]`) : filterComplex)
       .replace('overlay=x:y', `overlay=${overlayX}:${overlayY}`);
+    if (gradeFilter) sceneFilterComplex = sceneFilterComplex.replace('[outv]', `,${gradeFilter}[outv]`);
     if (Math.abs(speed - 1) > 0.001) console.log(`       ${scene.id}: tempo ${speed.toFixed(2)}x (visual ${take.toFixed(1)}s -> narasi ${duration.toFixed(1)}s)`);
     const clipPath = path.join(tempDir, `scene_${String(i).padStart(4, '0')}.mp4`);
 
