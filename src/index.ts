@@ -58,6 +58,12 @@ async function main() {
       },
       'grain': {
         type: 'boolean' // Noise film grain di akhir chain (memecah fingerprint CGI halus)
+      },
+      'scene-zoom': {
+        type: 'boolean' // Zoom acak per scene (1.0-1.3x dari zoom dasar)
+      },
+      'rotate': {
+        type: 'boolean' // Rotasi 0.5 derajat + overscan 4% (geometri anti-fingerprint)
       }
     },
     allowPositionals: true
@@ -136,7 +142,9 @@ async function main() {
       numOrUndef(values['speed-max']),
       values['color-grade'],
       values.mirror === true,
-      values.grain === true
+      values.grain === true,
+      values['scene-zoom'] === true,
+      values.rotate === true
     );
     return;
   }
@@ -182,7 +190,9 @@ async function main() {
       numOrUndef(values['speed-max']),
       values['color-grade'],
       values.mirror === true,
-      values.grain === true
+      values.grain === true,
+      values['scene-zoom'] === true,
+      values.rotate === true
     );
     console.log(`- Final Video:  ${outputMp4}`);
     console.log(`- Narration:    ${path.join(outputDir, 'narasi.txt')}`);

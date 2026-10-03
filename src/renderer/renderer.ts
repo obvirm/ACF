@@ -39,7 +39,9 @@ export async function renderShortVideo(
   speedMax: number = 2,
   colorGrade?: string,
   mirror?: boolean,
-  grain?: boolean
+  grain?: boolean,
+  sceneZoom?: boolean,
+  rotate?: boolean
 ) {
   const absManifest = path.resolve(manifestPath);
   const absOutput = path.resolve(outputMp4Path);
@@ -92,13 +94,15 @@ export async function renderShortVideo(
   const foregroundWidth = Math.round(W * foregroundZoom);
   const cameraPanMax = Math.max(0, Math.floor((foregroundWidth - W) / 2));
   let filterComplex: string;
+  let zoomTemplate: string | undefined;
   if (useStretch) {
     const fgH = Math.round(608 + (1920 - 608) * Math.min(1, Math.max(0, stretchRatio)));
     const fgW = Math.round(W * stretchZoom);
     filterComplex = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${fgW}:${fgH},crop=${W}:${fgH}[fg];[bg][fg]overlay=0:${Math.round((H - fgH) / 2)}:format=auto[outv]`.replace(/\s+/g, '');
     console.log(`       Stretch (lonjong) mode: ratio=${stretchRatio} hZoom=${stretchZoom} -> fg ${fgW}x${fgH}`);
   } else {
-    filterComplex = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*${foregroundZoom}:ih*${foregroundZoom}[fg];[bg][fg]overlay=x:y:format=auto[outv]`.replace(/\s+/g, '');
+    zoomTemplate = `[0:v]split=2[bg_src][fg_src];[bg_src]scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},gblur=sigma=50[bga];[bga]eq=brightness=-0.3[bg];[fg_src]scale=${W}:${H}:force_original_aspect_ratio=decrease,scale=iw*@ZOOM@:ih*@ZOOM@[fg];[bg][fg]overlay=x:y:format=auto[outv]`.replace(/\s+/g, '');
+    filterComplex = zoomTemplate.split('@ZOOM@').join(String(foregroundZoom));
     if (foregroundZoom !== baseZoom) console.log(`       Zoom (lonjong off): ${foregroundZoom}x`);
   }
   if (mirror) {
@@ -106,6 +110,8 @@ export async function renderShortVideo(
     console.log('       Mirror: hflip ON');
   }
   if (grain) console.log('       Grain: noise ON (alls=7)');
+  if (sceneZoom) console.log('       SceneZoom: random per scene (1.0-1.3x)');
+  if (rotate) console.log('       Rotate: 0.5deg + overscan ON');
 
   // Temp directory for scene clips
   const tempDir = path.join(path.dirname(absOutput), '_temp_scenes');
@@ -193,9 +199,18 @@ export async function renderShortVideo(
     let suffix = '';
     if (Math.abs(speed - 1) > 0.001) suffix += `,setpts=PTS/${speed.toFixed(4)}`;
     if (extraVisualDuration > 0.01) suffix += `,tpad=stop_mode=clone:stop_duration=${extraVisualDuration.toFixed(3)}`;
-    let sceneFilterComplex = (suffix ? filterComplex.replace('[outv]', `${suffix}[outv]`) : filterComplex)
+    let sceneFilterComplex = filterComplex;
+    if (sceneZoom && zoomTemplate) {
+      const z = (foregroundZoom * (1 + Math.random() * 0.3)).toFixed(3);
+      sceneFilterComplex = zoomTemplate.split('@ZOOM@').join(z);
+      if (mirror) sceneFilterComplex = sceneFilterComplex.replace('[0:v]split=2', '[0:v]hflip[mr];[mr]split=2');
+      console.log(`\n       ${scene.id}: sceneZoom ${z}x`);
+    }
+    if (suffix) sceneFilterComplex = sceneFilterComplex.replace('[outv]', `${suffix}[outv]`);
+    sceneFilterComplex = sceneFilterComplex
       .replace('overlay=x:y', `overlay=${overlayX}:${overlayY}`);
     if (gradeFilter) sceneFilterComplex = sceneFilterComplex.replace('[outv]', `,${gradeFilter}[outv]`);
+    if (rotate) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',scale=iw*1.04:ih*1.04,rotate=0.5*PI/180:ow=1080:oh=1920[outv]');
     if (grain) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',noise=alls=7:allf=t+u[outv]');
     if (Math.abs(speed - 1) > 0.001) console.log(`       ${scene.id}: tempo ${speed.toFixed(2)}x (visual ${take.toFixed(1)}s -> narasi ${duration.toFixed(1)}s)`);
     const clipPath = path.join(tempDir, `scene_${String(i).padStart(4, '0')}.mp4`);

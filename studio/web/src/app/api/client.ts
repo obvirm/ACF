@@ -95,6 +95,8 @@ export interface RunPayload {
   hzoom?: number;
   mirror?: boolean; // flip horizontal sumber (anti Content ID visual)
   grain?: boolean; // film grain noise (memecah fingerprint CGI halus)
+  sceneZoom?: boolean; // zoom acak per scene (1.0-1.3x)
+  rotate?: boolean; // rotasi 0.5 derajat + overscan 4%
   speedMin?: number; // batas lambat tempo (default 0.5)
   speedMax?: number; // batas cepat tempo (default 2)
   caption?: boolean;
@@ -130,7 +132,7 @@ export async function runPipeline(p: RunPayload) {
   return { jobId: j.jobId };
 }
 
-export async function previewFrame(p: { videoPath: string; stretch?: number; hzoom?: number; mirror?: boolean; grain?: boolean; atSec?: number }) {
+export async function previewFrame(p: { videoPath: string; stretch?: number; hzoom?: number; mirror?: boolean; grain?: boolean; sceneZoom?: boolean; rotate?: boolean; atSec?: number }) {
   const j = await jsonFetch<{ ok: boolean; image?: string; atSec?: number; error?: string }>(`${BASE}/api/preview-frame`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
