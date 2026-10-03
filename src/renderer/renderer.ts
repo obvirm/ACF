@@ -228,7 +228,7 @@ export async function renderShortVideo(
     const cmd = `ffmpeg -y -ss ${visualStart.toFixed(3)} -t ${visualInputDuration.toFixed(3)} -i "${actualVideoPath}" -filter_complex "${sceneFilterComplex}" -map "[outv]" -an -t ${duration.toFixed(3)} -c:v libx264 -preset fast -crf 23 "${clipPath}"`;
 
     try {
-      await execAsync(cmd, { maxBuffer: 1024 * 1024 * 10, timeout: 60000 });
+      await execAsync(cmd, { maxBuffer: 1024 * 1024 * 10, timeout: 300000 });
       sceneClips.push(clipPath);
       process.stdout.write(`\r       Scene ${i + 1}/${scenes.length} done (${startSec}s-${endSec}s)`);
     } catch (e: any) {
