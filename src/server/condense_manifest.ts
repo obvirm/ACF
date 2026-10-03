@@ -68,6 +68,7 @@ async function main() {
 
   const prompt = `Kamu merangkum video panjang jadi SATU short full-spoiler berdurasi ±${seconds} detik.
 Total narration_text SEMUA scene yang kamu pilih (digabung) HARUS ${minChars}-${budgetChars} karakter (kejar mendekati ${budgetChars}, JANGAN di bawah ${minChars}).
+BATAS ATAS ${budgetChars} karakter itu KERAS — kelebihan 1 karakter pun = GAGAL. Sebelum balas, hitung ulang total narasimu dan pangkas narasimu sendiri (buang kalimat kelebihan) sampai total ≤ ${budgetChars}.
 
 Aturan:
 1. Pilih subset scene KRONOLOGIS (awal->tengah->klimaks->akhir), buang yang tidak penting.
