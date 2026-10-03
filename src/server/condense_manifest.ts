@@ -15,8 +15,10 @@ config();
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "http://localhost:20128/v1";
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 
-// Kecepatan bicara terukur (Patrick ±21-24 char/detik) — margin aman pakai 20.
-const CHARS_PER_SEC = 20;
+// Laju bicara TES dari 2 pasangan data riil (omnivoice, suara Patrick):
+//   6566 char -> 275,2 dtk;  2705 char -> 116,2 dtk
+//   => durasi_video(dtk) ~= lead(5) + char / 24,3
+const CHARS_PER_SEC = 24.3;
 
 function arg(name: string, def?: string): string | undefined {
   const i = process.argv.indexOf(name);
@@ -60,15 +62,22 @@ async function main() {
   const scenes = manifest.scenes || [];
   if (!scenes.length) throw new Error("Manifest kosong (0 scene)");
 
-  const budgetChars = Math.floor(seconds * CHARS_PER_SEC);
-  const minChars = Math.floor(budgetChars * 0.85);
+  const leadSec = Math.max(0, Number(arg("--lead", "5")) || 5);
+  // Matematika: durasi = lead + karakter/24,3  =>  karakter = (target - lead) x 24,3
+  const budgetChars = Math.floor(Math.max(1, seconds - leadSec) * CHARS_PER_SEC);
+  const minChars = Math.floor(budgetChars * 0.95);
   const digest = scenes
     .map((s: any) => `[${s.start_sec}s-${s.end_sec}s] ${s.description || ""} || ${s.narration_text || ""}`)
     .join("\n");
 
-  const prompt = `Kamu merangkum video panjang jadi SATU short full-spoiler berdurasi ±${seconds} detik.
-Total narration_text SEMUA scene yang kamu pilih (digabung) HARUS ${minChars}-${budgetChars} karakter (kejar mendekati ${budgetChars}, JANGAN di bawah ${minChars}).
-BATAS ATAS ${budgetChars} karakter itu KERAS — kelebihan 1 karakter pun = GAGAL. Sebelum balas, hitung ulang total narasimu dan pangkas narasimu sendiri (buang kalimat kelebihan) sampai total ≤ ${budgetChars}.
+  const prompt = `Kamu merangkum video panjang jadi SATU short full-spoiler berdurasi TEPAT ${seconds} detik.
+
+MATEMATIKA WAJIB — hitung sendiri sebelum balas:
+- TTS membaca ±${CHARS_PER_SEC} karakter/detik + ${leadSec} detik jeda awal.
+- Total karakter narasi yang harus kamu tulis = (${seconds} - ${leadSec}) x ${CHARS_PER_SEC} = ${budgetChars} karakter.
+- Rentang keras: ${minChars}-${budgetChars} karakter (SEMUA narration_text scene digabung, dihitung dengan menghitung huruf/spasi satu per satu, bukan perkiraan).
+- Lebih dari ${budgetChars} = GAGAL (video melewati ${seconds} detik). Kurang dari ${minChars} = GAGAL (video jauh di bawah target).
+- Sebelum balas: JUMLAHKAN total karakter narasimu. Meleset? Tambah/pangkas narasimu SENDIRI (jangan buang scene) sampai masuk rentang.
 
 Aturan:
 1. Pilih subset scene KRONOLOGIS (awal->tengah->klimaks->akhir), buang yang tidak penting.
@@ -81,9 +90,12 @@ ${digest}
 
 Balas JSON SAJA: {"scenes":[{"id":"...","start_sec":0,"end_sec":0,"description":"...","narration_text":"...","subject_x_pct":50}]}`;
 
-  // Retry 3x: network/timeout, HTTP 429/5xx, atau JSON cacat.
+  // Retry 3x: network/timeout, HTTP 429/5xx, JSON cacat, ATAU jawaban di luar
+  // rentang karakter (AI tidak patuh matematika -> disuruh hitung ulang).
   const waits = [10_000, 30_000];
+  const charsOf = (sc: any[]) => (sc || []).reduce((a: number, s: any) => a + String(s.narration_text || "").length, 0);
   let parsed: any = null;
+  let best: { sc: any[]; dist: number } | null = null;
   let lastErr = "";
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
@@ -93,7 +105,7 @@ Balas JSON SAJA: {"scenes":[{"id":"...","start_sec":0,"end_sec":0,"description":
         body: JSON.stringify({
           model,
           stream: false,
-          messages: [{ role: "user", content: prompt }],
+          messages: [{ role: "user", content: prompt + (lastErr.includes("karakter") ? `\n\nPERINGATAN: percobaan sebelumnya GAGAL (${lastErr}). JUMLAHKAN lagi total karakter narasimu dengan teliti sebelum balas!` : "") }],
           // Model reasoning (gemini-pro-agent) menghabiskan budget token —
           // 4096 bikin JSON terpotong (finish: max_tokens). 32768 aman.
           max_tokens: 32768,
@@ -109,7 +121,14 @@ Balas JSON SAJA: {"scenes":[{"id":"...","start_sec":0,"end_sec":0,"description":
       }
       const data = (await response.json()) as any;
       const raw: string = data.choices?.[0]?.message?.content || "";
-      parsed = parseLlmJson(raw);
+      const cand = parseLlmJson(raw);
+      const got = charsOf(cand.scenes);
+      const dist = Math.abs(got - budgetChars);
+      if (!best || dist < best.dist) best = { sc: cand, dist };
+      if (got < minChars || got > budgetChars) {
+        throw new Error(`AI balas ${got} karakter di luar rentang ${minChars}-${budgetChars} - wajib hitung ulang`);
+      }
+      parsed = cand;
       break;
     } catch (e: any) {
       lastErr = e.message || String(e);
@@ -117,7 +136,14 @@ Balas JSON SAJA: {"scenes":[{"id":"...","start_sec":0,"end_sec":0,"description":
       if (attempt < 3) await new Promise((ok) => setTimeout(ok, waits[attempt - 1]));
     }
   }
-  if (!parsed) throw new Error(`LLM condense gagal 3x: ${lastErr.slice(0, 200)}`);
+  if (!parsed) {
+    if (best) {
+      console.log(`[condense] PERINGATAN: 3x di luar rentang - pakai jawaban terdekat (selisih ${best.dist} karakter)`);
+      parsed = best.sc;
+    } else {
+      throw new Error(`LLM condense gagal 3x: ${lastErr.slice(0, 200)}`);
+    }
+  }
   const out = (parsed.scenes || []).filter((s: any) => String(s.narration_text || "").trim().length > 0);
   if (!out.length) throw new Error("LLM menghasilkan 0 scene");
 
