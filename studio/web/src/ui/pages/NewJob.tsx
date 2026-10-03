@@ -32,6 +32,7 @@ export function NewJob() {
   const [sceneZoom, setSceneZoom] = useState(false);
   const [rotate, setRotate] = useState(false);
   const [lensWarp, setLensWarp] = useState(false);
+  const [texture, setTexture] = useState(false);
   const [speedMin, setSpeedMin] = useState<number | undefined>(0.5);
   const [speedMax, setSpeedMax] = useState<number | undefined>(2);
   const parseNum = (v: string): number | undefined => {
@@ -48,7 +49,7 @@ export function NewJob() {
     setPreviewLoading(true);
     setPreviewError(null);
     try {
-      const r = await previewFrame({ videoPath, stretch, hzoom, mirror, grain, sceneZoom, rotate, lensWarp, atSec: previewAtSec });
+      const r = await previewFrame({ videoPath, stretch, hzoom, mirror, grain, sceneZoom, rotate, lensWarp, texture, atSec: previewAtSec });
       setPreviewImg(r.image);
     } catch (e) {
       setPreviewError(e instanceof Error ? e.message : String(e));
@@ -238,6 +239,7 @@ export function NewJob() {
         sceneZoom: sceneZoom || undefined,
         rotate: rotate || undefined,
         lensWarp: lensWarp || undefined,
+        texture: texture || undefined,
         speedMin: speedMin !== undefined && !Number.isNaN(speedMin) ? speedMin : undefined,
         speedMax: speedMax !== undefined && !Number.isNaN(speedMax) ? speedMax : undefined,
         caption,
@@ -501,6 +503,16 @@ export function NewJob() {
               className="h-4 w-4 accent-[#B6FF3B]"
             />
             Lens Distortion (warp tipis)
+          </label>
+
+          <label className="flex items-center gap-2 text-xs font-bold tracking-wide text-[#a1a1aa]">
+            <input
+              type="checkbox"
+              checked={texture}
+              onChange={(e) => setTexture(e.target.checked)}
+              className="h-4 w-4 accent-[#B6FF3B]"
+            />
+            Texture Overlay (gerak)
           </label>
 
           <div className="space-y-1.5">

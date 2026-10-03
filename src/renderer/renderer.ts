@@ -42,7 +42,8 @@ export async function renderShortVideo(
   grain?: boolean,
   sceneZoom?: boolean,
   rotate?: boolean,
-  lensWarp?: boolean
+  lensWarp?: boolean,
+  texture?: boolean
 ) {
   const absManifest = path.resolve(manifestPath);
   const absOutput = path.resolve(outputMp4Path);
@@ -114,6 +115,7 @@ export async function renderShortVideo(
   if (sceneZoom) console.log('       SceneZoom: random per scene (1.0-1.3x)');
   if (rotate) console.log('       Rotate: 0.5deg + overscan ON');
   if (lensWarp) console.log('       LensWarp: barrel k1=-0.03 ON');
+  if (texture) console.log('       Texture: dynamic overlay ON (scroll 17/11 px, aa=0.04)');
 
   // Temp directory for scene clips
   const tempDir = path.join(path.dirname(absOutput), '_temp_scenes');
@@ -214,6 +216,11 @@ export async function renderShortVideo(
     if (gradeFilter) sceneFilterComplex = sceneFilterComplex.replace('[outv]', `,${gradeFilter}[outv]`);
     if (rotate) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',scale=iw*1.04:ih*1.04,rotate=0.5*PI/180:ow=1080:oh=1920[outv]');
     if (lensWarp) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',lenscorrection=cx=0.5:cy=0.5:k1=-0.03:k2=0[outv]');
+    if (texture) {
+      sceneFilterComplex = sceneFilterComplex
+        .replace('split=2[bg_src][fg_src]', 'split=3[bg_src][fg_src][tx_src]')
+        .replace('[outv]', "[m0];[tx_src]scale=270:480,noise=alls=40:allf=t+u,gblur=sigma=6,format=rgba,colorchannelmixer=aa=0.04,scale=1296:2304[tx];[m0][tx]overlay=x='-mod(t*17,216)':y='-mod(t*11,384)':format=auto[outv]");
+    }
     if (grain) sceneFilterComplex = sceneFilterComplex.replace('[outv]', ',noise=alls=7:allf=t+u[outv]');
     if (Math.abs(speed - 1) > 0.001) console.log(`       ${scene.id}: tempo ${speed.toFixed(2)}x (visual ${take.toFixed(1)}s -> narasi ${duration.toFixed(1)}s)`);
     const clipPath = path.join(tempDir, `scene_${String(i).padStart(4, '0')}.mp4`);

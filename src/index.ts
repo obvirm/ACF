@@ -67,6 +67,9 @@ async function main() {
       },
       'lens-warp': {
         type: 'boolean' // Distorsi lensa barrel tipis k1=-0.03 (geometri non-linear anti-fingerprint)
+      },
+      'texture': {
+        type: 'boolean' // Dynamic texture overlay: blotch acak di-scroll pelan, opacity 4%
       }
     },
     allowPositionals: true
@@ -148,7 +151,8 @@ async function main() {
       values.grain === true,
       values['scene-zoom'] === true,
       values.rotate === true,
-      values['lens-warp'] === true
+      values['lens-warp'] === true,
+      values.texture === true
     );
     return;
   }
@@ -197,7 +201,8 @@ async function main() {
       values.grain === true,
       values['scene-zoom'] === true,
       values.rotate === true,
-      values['lens-warp'] === true
+      values['lens-warp'] === true,
+      values.texture === true
     );
     console.log(`- Final Video:  ${outputMp4}`);
     console.log(`- Narration:    ${path.join(outputDir, 'narasi.txt')}`);
